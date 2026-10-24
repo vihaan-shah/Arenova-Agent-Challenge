@@ -1,0 +1,8 @@
+{
+  "name": "arenova-connect4-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check connect4-agent.js"
+  }
+}
