@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check connect4-agent.js"
+    "check": "node --check Connect4/connect4-agent.js && node --check Clue/clue-agent.js"
   }
 }
