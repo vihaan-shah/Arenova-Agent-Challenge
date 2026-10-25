@@ -52,3 +52,20 @@ Run the syntax check with:
 npm run check
 ```
 
+## Recorded replay tests
+
+### Replay 1: Baseline Bo 4 solved the case
+
+- The game reached a correct accusation by Baseline Bo 4.
+- The winning accusation was Colonel Mustard, Lead Pipe, and Conservatory.
+- CCv2 made legal movement, suggestions, and card responses but did not solve the case before the other agent won.
+- Follow-up improvement: suggestions now prioritize higher-information suspect/weapon pairs and avoid repeating pairs in the same room.
+
+### Replay 2: `crucible-clue-192df479-08ef-4a21-8a5c-8ed46ffbd8a5.json`
+
+- The hidden solution was Professor Plum, Wrench, and Dining Room.
+- Baseline Bo 2 won the match.
+- CCv2, running as seat 6, made legal moves and suggestions and did not crash or make an invalid accusation.
+- Replaying CCv2's seat-visible history against the updated agent produced a legal `turn-ended` response because the visible evidence still allowed multiple solutions at that point.
+- Follow-up improvement: the updated agent uses a bounded deduction solver and information-gain suggestions.
+
