@@ -21,7 +21,8 @@ The challenge provides a JavaScript/Node.js runtime. JavaScript is a good fit be
 
 ## Files
 
-- `connect4-agent.js` — the submission agent.
+- `connect4-agent.mjs` — the submission agent.
+- `crucible.json` — tells the runner to use Node 24 and the entrypoint.
 - `README.md` — this explanation.
 
 ## Test cases

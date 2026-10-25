@@ -1,0 +1,4 @@
+{
+  "runtime": "node24",
+  "entrypoint": "connect4-agent.mjs"
+}

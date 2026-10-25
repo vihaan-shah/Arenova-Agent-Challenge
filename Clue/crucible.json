@@ -1,0 +1,4 @@
+{
+  "runtime": "node24",
+  "entrypoint": "clue-agent.mjs"
+}

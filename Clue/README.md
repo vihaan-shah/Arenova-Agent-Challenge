@@ -25,7 +25,8 @@ The deduction search has a small fixed time budget. If it reaches that limit, th
 
 ## Files
 
-- `clue-agent.js` — the submission agent.
+- `clue-agent.mjs` — the submission agent.
+- `crucible.json` — tells the runner to use Node 24 and the entrypoint.
 - `README.md` — this explanation.
 
 ## Test cases
