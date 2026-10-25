@@ -21,6 +21,8 @@ The challenge provides a JavaScript/Node.js runtime. JavaScript makes the JSON p
 7. Builds possible solution triples from hand sizes, known cards, passed players, and refutations.
 8. Accuses as soon as only one solution triple remains possible.
 
+The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
+
 ## Files
 
 - `clue-agent.js` — the submission agent.

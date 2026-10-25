@@ -3,6 +3,7 @@
 
 let seat = null;
 let requestsHandled = 0;
+const DEDUCTION_BUDGET_MS = 250;
 
 function events(history) {
   return history.map(({ event }) => event);
@@ -36,7 +37,8 @@ function sameTriple(a, b) {
 
 // Check whether a proposed solution can still be distributed among the
 // players while satisfying every visible suggestion/refutation constraint.
-function solutionIsPossible(start, all, shownToMe, candidate) {
+function solutionIsPossible(start, all, shownToMe, candidate, deadline) {
+  if (Date.now() >= deadline) throw new Error("deduction-timeout");
   const seats = [...(start.seats ?? [])];
   const me = start.you.seat;
   const solution = "__solution__";
@@ -113,6 +115,7 @@ function solutionIsPossible(start, all, shownToMe, candidate) {
   }
 
   function search(assigned, remaining, counts) {
+    if (Date.now() >= deadline) throw new Error("deduction-timeout");
     if (!constraintsStillPossible(assigned, remaining)) return false;
     if (remaining.size === 0) {
       return refutationNeeds.every(need => need.cards.some(card => assigned.get(card) === need.owner)) &&
@@ -145,15 +148,21 @@ function solutionIsPossible(start, all, shownToMe, candidate) {
 
 function inferSolutions(start, all, shownToMe) {
   const candidates = [];
+  const deadline = Date.now() + DEDUCTION_BUDGET_MS;
   for (const suspect of start.suspects ?? []) {
     for (const weapon of start.weapons ?? []) {
       for (const room of start.rooms ?? []) {
         const candidate = [cardId("suspect", suspect), cardId("weapon", weapon), cardId("room", room)];
-        if (solutionIsPossible(start, all, shownToMe, candidate)) candidates.push({ suspect, weapon, room });
+        try {
+          if (solutionIsPossible(start, all, shownToMe, candidate, deadline)) candidates.push({ suspect, weapon, room });
+        } catch (error) {
+          if (error.message === "deduction-timeout") return { candidates, complete: false };
+          throw error;
+        }
       }
     }
   }
-  return candidates;
+  return { candidates, complete: true };
 }
 
 function snapshot(history) {
@@ -194,14 +203,14 @@ function snapshot(history) {
       roll = event.nextRoll;
     }
   }
-  const solutions = inferSolutions(start, all, shownToMe);
+  const inference = inferSolutions(start, all, shownToMe);
   return {
     start,
     positions,
     roll,
     maySuggestWithoutMoving,
-    knownSolution: solutions.length === 1 ? solutions[0] : null,
-    solutions,
+    knownSolution: inference.complete && inference.candidates.length === 1 ? inference.candidates[0] : null,
+    solutions: inference.candidates,
     shownToMe,
   };
 }
