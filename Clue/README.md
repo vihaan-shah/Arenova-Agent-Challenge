@@ -20,6 +20,7 @@ The challenge provides a JavaScript/Node.js runtime. JavaScript makes the JSON p
 6. Shows a matching card when it is asked to refute a suggestion.
 7. Builds possible solution triples from hand sizes, known cards, passed players, and refutations.
 8. Accuses as soon as only one solution triple remains possible.
+9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
 The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
 

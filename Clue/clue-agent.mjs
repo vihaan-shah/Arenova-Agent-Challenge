@@ -206,6 +206,7 @@ function snapshot(history) {
   const inference = inferSolutions(start, all, shownToMe);
   return {
     start,
+    all,
     positions,
     roll,
     maySuggestWithoutMoving,
@@ -215,12 +216,35 @@ function snapshot(history) {
   };
 }
 
-function chooseSuggestion(start, room, shownToMe, solutions = []) {
-  // Do not suggest cards already known to be in our hand or shown to us.
+function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
+  const unavailable = card => shownToMe.has(card);
+  const suspects = (start.suspects ?? []).filter(value => !unavailable(cardId("suspect", value)));
+  const weapons = (start.weapons ?? []).filter(value => !unavailable(cardId("weapon", value)));
+  const tried = new Set(
+    all
+      .filter(event => event.type === "suggestion-made" && event.suggestion.room === room)
+      .map(event => `${event.suggestion.suspect}|${event.suggestion.weapon}`),
+  );
+
+  // Prefer pairs that occur most often in the remaining solution candidates:
+  // they are more likely to reveal useful information. Avoid repeating a pair
+  // in the same room until every legal pair has been tried.
   const roomSolutions = solutions.filter(solution => solution.room === room);
   const pool = roomSolutions.length ? roomSolutions : solutions;
-  const suspect = pool[0]?.suspect ?? start.suspects.find(value => !shownToMe.has(cardId("suspect", value))) ?? start.suspects[0];
-  const weapon = pool[0]?.weapon ?? start.weapons.find(value => !shownToMe.has(cardId("weapon", value))) ?? start.weapons[0];
+  const pairs = [];
+  for (const suspect of suspects) {
+    for (const weapon of weapons) {
+      const key = `${suspect}|${weapon}`;
+      const support = pool.filter(solution => solution.suspect === suspect && solution.weapon === weapon).length;
+      pairs.push({ suspect, weapon, support, repeated: tried.has(key) });
+    }
+  }
+  const fresh = pairs.filter(pair => !pair.repeated);
+  const choices = fresh.length ? fresh : pairs;
+  choices.sort((a, b) => b.support - a.support || a.suspect.localeCompare(b.suspect) || a.weapon.localeCompare(b.weapon));
+  const choice = choices[0] ?? { suspect: start.suspects[0], weapon: start.weapons[0] };
+  const suspect = choice.suspect;
+  const weapon = choice.weapon;
   return { type: "suggestion-made", suspect, weapon, room };
 }
 
@@ -230,7 +254,7 @@ function latestSuggestionRefutedByMe(history, mySeat) {
   );
 }
 
-function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions) {
+function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all) {
   const character = start.you.character;
   const origin = positions[character];
   const board = start.board;
@@ -244,7 +268,7 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   );
 
   if (origin.kind === "room") {
-    if (maySuggestWithoutMoving) return chooseSuggestion(start, origin.room, shownToMe, solutions);
+    if (maySuggestWithoutMoving) return chooseSuggestion(start, origin.room, shownToMe, solutions, all);
 
     const passage = board.secretPassages?.find(({ from, to }) => from === origin.room || to === origin.room);
     if (passage) {
@@ -298,20 +322,20 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
 
 function decide(history, request) {
   const state = snapshot(history);
-  const { start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions } = state;
+  const { start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all } = state;
 
   if (request.kind === "take-turn") {
     // The only certain solution is a suggestion nobody could refute.
     if (state.knownSolution) {
       return { type: "accusation-made", ...state.knownSolution };
     }
-    return movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions);
+    return movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all);
   }
 
   if (request.kind === "make-suggestion") {
     const room = positions[start.you.character]?.room;
     if (!room) throw new Error("cannot suggest outside a room");
-    return chooseSuggestion(start, room, shownToMe, solutions);
+    return chooseSuggestion(start, room, shownToMe, solutions, all);
   }
 
   if (request.kind === "show-card") {
