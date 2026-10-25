@@ -69,3 +69,12 @@ npm run check
 - Replaying CCv2's seat-visible history against the updated agent produced a legal `turn-ended` response because the visible evidence still allowed multiple solutions at that point.
 - Follow-up improvement: the updated agent uses a bounded deduction solver and information-gain suggestions.
 
+### Replay 3: `crucible-clue-28f215f4-40fa-471b-a9eb-c01682f05fe8.json`
+
+- This match used two Baseline Bo opponents plus CCv2.
+- The hidden solution was Professor Plum, Rope, and Lounge.
+- Baseline Bo won after reaching the Lounge and making an unrefuted accusation.
+- CCv2 made legal moves, suggestions, and card responses without crashing or making an invalid accusation.
+- At CCv2's last turn, its visible evidence still left multiple possible suspects, weapons, and rooms, so ending the turn was safer than guessing.
+- This replay used the earlier CCv2 build; the current package adds bounded deduction and information-gain suggestion selection.
+
