@@ -201,3 +201,13 @@ npm run check
 - Baseline Bo narrowed the case by testing Colonel Mustard with the Knife in Conservatory and then Study, keeping the suspect/weapon pair stable while changing rooms before making the correct accusation.
 - Follow-up fix: relay requests now require JSON-object output, local crowd/focus movement goals are used before calling the relay, and the saved AI-call budget is reserved for suggestions and accusations. The local fallback still protects against malformed output.
 
+### Replay 13
+
+- This six-player match had AIAgent and five Baseline Bo opponents.
+- AIAgent was playing Mrs. White and held Dining Room, Colonel Mustard, and Billiard Room.
+- The replay used the earlier package with source hash `fa7ef5df...`; the current ZIP includes the later structured-output and AI-call-allocation improvements.
+- AIAgent correctly showed cards to refute suggestions. The “private card” events were valid card responses, not crashes or eliminations.
+- AIAgent moved Mrs. White into the corridor, ended the turn, and later made one legal suggestion: Mr. Green with the Candlestick in the Conservatory.
+- Baseline Bo 2 solved the case with Mrs. White, Pistol, and Conservatory before AIAgent had enough turns to gather more evidence.
+- This replay reinforces that early movement efficiency matters in larger matches: a legal but nonproductive first turn can leave the agent with too little time before another agent reaches a supported accusation.
+
