@@ -26,6 +26,8 @@ The AI relay is called only a limited number of times per match and is given onl
 
 The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary, and the local constraint solver must independently identify one solution before any AI accusation is accepted.
 
+After selecting a useful suspect/weapon pair, the agent keeps that pair as a focus and tests it across different rooms. It changes the pair only when visible evidence rules out one of its cards. This mirrors the strongest pattern observed in the Baseline Bo replays while preserving the AI layer.
+
 The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
 
 ## Files
@@ -57,6 +59,7 @@ These checks were run from the project root:
 | Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
 | Evidence-gated accusation | Model returns a confident accusation | The agent accepts it only when the local constraint solver independently has one solution left. |
+| Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards. |
 
 ## Algorithmic-to-AI test case
 
@@ -121,4 +124,12 @@ npm run check
 - Baseline Bo repeatedly tested the same likely suspect/weapon pair in different rooms, including Conservatory, Study, Billiard Room, Lounge, and Library, before correctly accusing in Ballroom.
 - AIAgent made an incorrect accusation of Mr. Green, Rope, and Conservatory. The suspect and weapon were plausible, but the room was not proven.
 - Follow-up fix: AI confidence can no longer override the local deduction solver. An AI accusation is accepted only when the local solver independently identifies the exact unique solution.
+
+### Replay 7
+
+- This six-player match was viewed from both AIAgent and Baseline Bo perspectives.
+- The correct solution was Mrs. White, Rope, and Billiard Room.
+- Baseline Bo repeatedly tested a stable suspect/weapon combination across several rooms and correctly waited until the Billiard Room was supported before accusing.
+- AIAgent made legal moves and suggestions but changed its suspect/weapon focus more often and did not solve the case before Baseline Bo.
+- Follow-up fix: the AI agent now keeps a focus pair across room suggestions and changes it only when visible evidence rules out a component.
 

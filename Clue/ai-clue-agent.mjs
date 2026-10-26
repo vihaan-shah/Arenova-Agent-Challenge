@@ -6,6 +6,7 @@ import { handle as safeHandle, snapshot as analyzeHistory } from "./clue-agent.m
 
 const MAX_AI_CALLS = 4; // Keeps worst-case relay cost within the documented seat budget.
 let aiCalls = 0;
+let focusPair = null;
 
 function allEvents(history) {
   return history.map(item => item.event);
@@ -96,13 +97,34 @@ function evidenceSummary(start, history) {
   return { knownNotSolution: [...knownNotSolution], observations };
 }
 
+function knownCards(start, history) {
+  const known = new Set(start.hand ?? []);
+  for (const event of allEvents(history)) {
+    if (event.type === "card-shown" && event.shownTo === start.you.seat && event.card) known.add(event.card);
+  }
+  return known;
+}
+
+function usablePair(start, history, pair) {
+  if (!pair || !(start.suspects ?? []).includes(pair.suspect) || !(start.weapons ?? []).includes(pair.weapon)) return false;
+  const known = knownCards(start, history);
+  return !known.has(`suspect:${pair.suspect}`) && !known.has(`weapon:${pair.weapon}`);
+}
+
 function validateAiAction(start, history, request, action, fallback) {
   if (!action || typeof action !== "object") return fallback;
 
   if (request.kind === "make-suggestion") {
     const room = currentRoom(start, history);
     if (action.type === "suggestion-made" && validTriple(start, action) && action.room === room) {
-      return { type: "suggestion-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
+      if (!usablePair(start, history, focusPair)) focusPair = null;
+      if (!focusPair) {
+        const proposed = { suspect: action.suspect, weapon: action.weapon };
+        if (usablePair(start, history, proposed)) focusPair = proposed;
+      }
+      if (focusPair) {
+        return { type: "suggestion-made", suspect: focusPair.suspect, weapon: focusPair.weapon, room: action.room };
+      }
     }
     return fallback;
   }
@@ -157,11 +179,12 @@ async function askRelay(start, history, request, fallback, mode = "decision") {
     "Use only the visible setup and history below. Never invent hidden cards or events.",
     "Return exactly one JSON response object and no markdown.",
     movementInstruction,
+    "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
     "For accuse-or-end, return an accusation only when justified and include a numeric confidence from 0 to 1; otherwise return {\"type\":\"turn-ended\"}.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
-    `Deduction evidence: ${JSON.stringify(evidenceSummary(start, history))}`,
+    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), focusPair })}`,
     `Compact setup and visible history: ${JSON.stringify({ start: compactSetup(start), history: compactHistory(history) })}`,
   ].join("\n");
 
@@ -199,6 +222,7 @@ async function askRelay(start, history, request, fallback, mode = "decision") {
 async function handle(message) {
   if (message.type === "init") {
     aiCalls = 0;
+    focusPair = null;
     return safeHandle(message);
   }
   if (message.type !== "decision") return safeHandle(message);
@@ -214,6 +238,11 @@ async function handle(message) {
   }
 
   const fallback = await safeHandle(message, { preferredRoom });
+
+  if (request.kind === "make-suggestion" && !focusPair && fallback.type === "suggestion-made") {
+    const proposed = { suspect: fallback.suspect, weapon: fallback.weapon };
+    if (usablePair(start, message.history ?? [], proposed)) focusPair = proposed;
+  }
 
   // The model is used only where it can add strategic value. Local code is
   // already safer and faster for paths and card-refutation responses.
