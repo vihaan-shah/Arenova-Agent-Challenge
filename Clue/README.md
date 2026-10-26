@@ -102,3 +102,11 @@ npm run check
 - Those prompts also included the full board geometry, reaching roughly 29,000 prompt tokens per call and adding several seconds of latency.
 - Follow-up fix: AI calls are now reserved for `make-suggestion` and `accuse-or-end`, and prompts use a compact deduction summary. The local engine still handles movement and card refutation.
 
+### Replay 5
+
+- This six-player match included AIAgent alongside five Baseline Bo agents.
+- The hidden solution was Miss Scarlet, Rope, and Ballroom.
+- AIAgent received one turn, made a legal corridor move, and ended its turn normally.
+- Baseline Bo 3 reached the Ballroom on the next turn, made an unrefuted suggestion, and correctly accused the solution.
+- The match ended before AIAgent had a chance to make a suggestion or accusation; no AIAgent crash or invalid response occurred.
+
