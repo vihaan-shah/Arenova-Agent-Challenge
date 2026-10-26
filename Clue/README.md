@@ -94,3 +94,11 @@ npm run check
 - At CCv2's last turn, its visible evidence still left multiple possible suspects, weapons, and rooms, so ending the turn was safer than guessing.
 - This replay used the earlier CCv2 build; the current package adds bounded deduction and information-gain suggestion selection.
 
+### Replay 4: `crucible-clue-e9f1816c-7f82-4f84-8c74-fd32fb5cc7aa.json`
+
+- The six-player match was won by Baseline Bo 2.
+- The hidden solution was Mrs. Peacock, Wrench, and Study.
+- The earlier AI build made legal moves and suggestions, but it spent all four AI calls on `take-turn`, `finish`, and `show-card` requests. Its wrapper rejected those model outputs and used the local fallback, so the AI never influenced the actual suggestion decisions.
+- Those prompts also included the full board geometry, reaching roughly 29,000 prompt tokens per call and adding several seconds of latency.
+- Follow-up fix: AI calls are now reserved for `make-suggestion` and `accuse-or-end`, and prompts use a compact deduction summary. The local engine still handles movement and card refutation.
+
