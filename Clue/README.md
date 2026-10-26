@@ -81,6 +81,7 @@ npm run check
 
 ### Replay 1: Baseline Bo 4 solved the case
 
+- Six-player match: AIAgent had five opponents.
 - The game reached a correct accusation by Baseline Bo 4.
 - The winning accusation was Colonel Mustard, Lead Pipe, and Conservatory.
 - CCv2 made legal movement, suggestions, and card responses but did not solve the case before the other agent won.
@@ -88,6 +89,7 @@ npm run check
 
 ### Replay 2
 
+- Six-player match: AIAgent had five opponents.
 - The hidden solution was Professor Plum, Wrench, and Dining Room.
 - Baseline Bo 2 won the match.
 - CCv2, running as seat 6, made legal moves and suggestions and did not crash or make an invalid accusation.
@@ -97,6 +99,7 @@ npm run check
 ### Replay 3
 
 - This match used two Baseline Bo opponents plus CCv2.
+- Three-player match: CCv2 had two opponents.
 - The hidden solution was Professor Plum, Rope, and Lounge.
 - Baseline Bo won after reaching the Lounge and making an unrefuted accusation.
 - CCv2 made legal moves, suggestions, and card responses without crashing or making an invalid accusation.
@@ -106,6 +109,7 @@ npm run check
 ### Replay 4
 
 - The six-player match was won by Baseline Bo 2.
+- Six-player match: AIAgent had five opponents.
 - The hidden solution was Mrs. Peacock, Wrench, and Study.
 - The earlier AI build made legal moves and suggestions, but it spent all four AI calls on `take-turn`, `finish`, and `show-card` requests. Its wrapper rejected those model outputs and used the local fallback, so the AI never influenced the actual suggestion decisions.
 - Those prompts also included the full board geometry, reaching roughly 29,000 prompt tokens per call and adding several seconds of latency.
@@ -114,6 +118,7 @@ npm run check
 ### Replay 5
 
 - This six-player match included AIAgent alongside five Baseline Bo agents.
+- Six-player match: AIAgent had five opponents.
 - The hidden solution was Miss Scarlet, Rope, and Ballroom.
 - AIAgent received one turn, made a legal corridor move, and ended its turn normally.
 - Baseline Bo 3 reached the Ballroom on the next turn, made an unrefuted suggestion, and correctly accused the solution.
@@ -122,6 +127,7 @@ npm run check
 ### Replay 6
 
 - This six-player match was shown from Baseline Bo's perspective.
+- Six-player match: AIAgent had five opponents.
 - The hidden solution was Mr. Green, Rope, and Ballroom.
 - Baseline Bo repeatedly tested the same likely suspect/weapon pair in different rooms, including Conservatory, Study, Billiard Room, Lounge, and Library, before correctly accusing in Ballroom.
 - AIAgent made an incorrect accusation of Mr. Green, Rope, and Conservatory. The suspect and weapon were plausible, but the room was not proven.
@@ -130,6 +136,7 @@ npm run check
 ### Replay 7
 
 - This six-player match was viewed from both AIAgent and Baseline Bo perspectives.
+- Six-player match: AIAgent had five opponents.
 - The correct solution was Mrs. White, Rope, and Billiard Room.
 - Baseline Bo repeatedly tested a stable suspect/weapon combination across several rooms and correctly waited until the Billiard Room was supported before accusing.
 - AIAgent made legal moves and suggestions but changed its suspect/weapon focus more often and did not solve the case before Baseline Bo.
@@ -140,6 +147,7 @@ npm run check
 ### Replay 8
 
 - This three-player match was won by Baseline Bo.
+- Three-player match: AIAgent had two opponents.
 - The hidden solution was Mrs. Peacock, Rope, and Hall.
 - AIAgent made legal movement, suggestions, card responses, and turn endings without crashing or making an invalid accusation.
 - AIAgent tested several combinations, including Mrs. Peacock with the Candlestick and Knife, but did not reach a proven solution before Baseline Bo accused correctly.
@@ -150,6 +158,7 @@ npm run check
 ### Replay 9
 
 - This three-player match was won by Baseline Bo with the solution Professor Plum, Pistol, and Lounge.
+- Three-player match: AIAgent had two opponents.
 - The replay metadata confirms that AIAgent used the submitted Clue package: its source hash matched the local `Clue/clue-agent.zip` exactly.
 - AIAgent made legal moves and suggestions, including Professor Plum with the Wrench in the Study and Miss Scarlet with the Pistol in the Kitchen.
 - AIAgent was eliminated after accusing Professor Plum, Pistol, and Billiard Room. The accusation was incorrect; the match engine labels this state `OUT`.
@@ -160,6 +169,7 @@ npm run check
 ### Replay 10
 
 - This three-player match was won by AIAgent.
+- Three-player match: AIAgent had two opponents.
 - The replay metadata confirms that AIAgent used the submitted Clue package: its source hash matched the local `Clue/clue-agent.zip` exactly.
 - The correct solution was Mrs. White, Candlestick, and Dining Room.
 - AIAgent kept Candlestick as its stable weapon while testing different suspects and rooms, including Mrs. Peacock in the Conservatory and Lounge, Professor Plum in the Hall, and Miss Scarlet in the Ballroom.
