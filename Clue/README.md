@@ -52,6 +52,14 @@ These checks were run from the project root:
 | AI invalid suggestion | Return an invalid room/card combination | Rejects it and uses the safe local response. |
 | AI invalid movement | Return `pawn-moved` from the model | Rejects it and uses the locally generated legal movement. |
 
+## Algorithmic-to-AI test case
+
+- Earlier versions used only a deterministic deduction and movement algorithm.
+- The current version adds an AI reasoning layer through Arenova's documented local relay.
+- The AI reviews the visible setup and history to choose more informed suggestions and supported accusations.
+- A deterministic legality engine remains as the fallback for movement, unavailable relay settings, timeouts, malformed JSON, or invalid model actions.
+- The agent was checked with the relay disabled and with a local mock relay; both paths returned valid protocol responses.
+
 Run the syntax check with:
 
 ```bash
