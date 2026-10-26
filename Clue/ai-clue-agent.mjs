@@ -243,7 +243,7 @@ function validateMovementPlan(start, action) {
   return null;
 }
 
-async function askRelay(start, history, request, fallback, mode = "decision") {
+async function askRelay(start, history, request, fallback, mode = "decision", rejectedAction = null) {
   const baseUrl = process.env.OPENAI_BASE_URL;
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.CRUCIBLE_AI_MODEL;
@@ -264,6 +264,9 @@ async function askRelay(start, history, request, fallback, mode = "decision") {
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
     `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, focusPair })}`,
+    ...(rejectedAction ? [
+      `The previous accusation was rejected by the local solver because it is not a possible solution: ${JSON.stringify({ suspect: rejectedAction.suspect, weapon: rejectedAction.weapon, room: rejectedAction.room })}. Choose a different still-possible triple; do not repeat it.`,
+    ] : []),
     `Compact setup and visible history: ${JSON.stringify({ start: compactSetup(start), history: compactHistory(history) })}`,
   ].join("\n");
 
@@ -337,7 +340,14 @@ async function handle(message) {
   if (!["make-suggestion", "accuse-or-end"].includes(request.kind)) return fallback;
 
   const aiAction = await askRelay(start, message.history ?? [], request, fallback, "decision");
-  return validateAiAction(start, message.history ?? [], request, aiAction, fallback);
+  const result = validateAiAction(start, message.history ?? [], request, aiAction, fallback);
+  if (request.kind === "accuse-or-end" && aiAction?.type === "accusation-made" && result === fallback) {
+    // Give the model one opportunity to recover from an evidence-invalid or
+    // under-confident accusation instead of ending the turn immediately.
+    const replacement = await askRelay(start, message.history ?? [], request, fallback, "decision", aiAction);
+    return validateAiAction(start, message.history ?? [], request, replacement, fallback);
+  }
+  return result;
 }
 
 async function run() {

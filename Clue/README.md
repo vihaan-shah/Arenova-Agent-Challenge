@@ -28,6 +28,8 @@ The current version also asks the model for a room goal during movement. The loc
 
 The threshold can be adjusted with `CRUCIBLE_AI_ACCUSATION_THRESHOLD`, from `0` to `1`; the default is `0.80`.
 
+If the model proposes an accusation that the local solver rejects, the wrapper makes one recovery request asking for a different possible triple. A second invalid or under-confident response still falls back to `turn-ended`.
+
 After selecting a useful suspect/weapon pair, the agent keeps that pair as a focus and tests it across different rooms. It changes the pair only when visible evidence rules out one of its cards. Once a card is shown, it is permanently excluded from future solution candidates, and the agent selects a replacement pair. If the local solver identifies the unique solution, the next decision immediately makes the accusation. An unrefuted suggestion by another player is not treated as conclusive because that player may privately hold one of the suggested cards. This mirrors the strongest pattern observed in the Baseline Bo replays while preserving the AI layer.
 
 The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
@@ -61,6 +63,7 @@ These checks were run from the project root:
 | Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
 | Confidence-gated accusation | Model returns a confident accusation | The agent accepts it when confidence is at least 0.80 and the local constraint solver still considers the triple possible. |
+| Accusation recovery | The model proposes an impossible or under-confident accusation | The agent sends the rejection context back once and asks for a different possible triple before ending the turn. |
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |
 | Evidence-directed movement | A focus pair has candidate rooms remaining | Movement targets an untested candidate room before asking the relay for a new general movement goal. |
