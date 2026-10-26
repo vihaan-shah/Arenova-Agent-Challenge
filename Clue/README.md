@@ -77,7 +77,7 @@ npm run check
 - CCv2 made legal movement, suggestions, and card responses but did not solve the case before the other agent won.
 - Follow-up improvement: suggestions now prioritize higher-information suspect/weapon pairs and avoid repeating pairs in the same room.
 
-### Replay 2: `crucible-clue-192df479-08ef-4a21-8a5c-8ed46ffbd8a5.json`
+### Replay 2
 
 - The hidden solution was Professor Plum, Wrench, and Dining Room.
 - Baseline Bo 2 won the match.
@@ -85,7 +85,7 @@ npm run check
 - Replaying CCv2's seat-visible history against the updated agent produced a legal `turn-ended` response because the visible evidence still allowed multiple solutions at that point.
 - Follow-up improvement: the updated agent uses a bounded deduction solver and information-gain suggestions.
 
-### Replay 3: `crucible-clue-28f215f4-40fa-471b-a9eb-c01682f05fe8.json`
+### Replay 3
 
 - This match used two Baseline Bo opponents plus CCv2.
 - The hidden solution was Professor Plum, Rope, and Lounge.
@@ -94,7 +94,7 @@ npm run check
 - At CCv2's last turn, its visible evidence still left multiple possible suspects, weapons, and rooms, so ending the turn was safer than guessing.
 - This replay used the earlier CCv2 build; the current package adds bounded deduction and information-gain suggestion selection.
 
-### Replay 4: `crucible-clue-e9f1816c-7f82-4f84-8c74-fd32fb5cc7aa.json`
+### Replay 4
 
 - The six-player match was won by Baseline Bo 2.
 - The hidden solution was Mrs. Peacock, Wrench, and Study.
