@@ -19,12 +19,14 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 5. Suggests the current room, choosing suspect and weapon cards not known to be in its hand.
 6. Shows a matching card when it is asked to refute a suggestion.
 7. Builds possible solution triples from hand sizes, known cards, passed players, and refutations.
-8. Accuses as soon as only one solution triple remains possible.
+8. Accuses when the local solver proves the solution, or when the AI reaches its confidence threshold on a still-possible triple.
 9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
 The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
 
-The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary, and the local constraint solver must independently identify one solution before any AI accusation is accepted.
+The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary. AI accusations use a conservative confidence threshold (0.90 by default): the local constraint solver must still consider the triple possible, but it does not have to have only one remaining candidate.
+
+The threshold can be adjusted with `CRUCIBLE_AI_ACCUSATION_THRESHOLD`, from `0` to `1`; the default is `0.90`.
 
 After selecting a useful suspect/weapon pair, the agent keeps that pair as a focus and tests it across different rooms. It changes the pair only when visible evidence rules out one of its cards. Once a card is shown, it is permanently excluded from future solution candidates, and the agent selects a replacement pair. If the local solver identifies the unique solution, the next decision immediately makes the accusation. An unrefuted suggestion by another player is not treated as conclusive because that player may privately hold one of the suggested cards. This mirrors the strongest pattern observed in the Baseline Bo replays while preserving the AI layer.
 
@@ -58,7 +60,7 @@ These checks were run from the project root:
 | Call-budget routing | Send `take-turn`, `show-card`, and movement requests | No AI call is spent; the local engine handles them directly. |
 | Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
-| Evidence-gated accusation | Model returns a confident accusation | The agent accepts it only when the local constraint solver independently has one solution left. |
+| Confidence-gated accusation | Model returns a confident accusation | The agent accepts it when confidence is at least 0.90 and the local constraint solver still considers the triple possible. |
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |
 | Evidence-directed movement | A focus pair has candidate rooms remaining | Movement targets an untested candidate room before asking the relay for a new general movement goal. |

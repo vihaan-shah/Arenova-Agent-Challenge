@@ -5,8 +5,14 @@
 import { handle as safeHandle, snapshot as analyzeHistory } from "./clue-agent.mjs";
 
 const MAX_AI_CALLS = 4; // Keeps worst-case relay cost within the documented seat budget.
+const DEFAULT_ACCUSATION_THRESHOLD = 0.9;
 let aiCalls = 0;
 let focusPair = null;
+
+function accusationThreshold() {
+  const configured = Number(process.env.CRUCIBLE_AI_ACCUSATION_THRESHOLD ?? DEFAULT_ACCUSATION_THRESHOLD);
+  return Number.isFinite(configured) ? Math.min(1, Math.max(0, configured)) : DEFAULT_ACCUSATION_THRESHOLD;
+}
 
 function allEvents(history) {
   return history.map(item => item.event);
@@ -208,13 +214,19 @@ function validateAiAction(start, history, request, action, fallback) {
 
   if (request.kind === "accuse-or-end" || request.kind === "take-turn") {
     // Movement remains on the deterministic fallback path. The model may
-    // override it only with a structurally valid accusation.
+    // make a high-confidence accusation when it remains locally possible,
+    // even if more than one candidate is unresolved.
     if (action.type === "accusation-made" && validTriple(start, action)) {
-      // Never let model confidence override game evidence. The accusation is
-      // accepted only when the local constraint solver has one solution left.
-      const certain = analyzeHistory(history).knownSolution;
+      const state = analyzeHistory(history);
+      const certain = state.knownSolution;
       if (certain && action.suspect === certain.suspect &&
         action.weapon === certain.weapon && action.room === certain.room) {
+        return { type: "accusation-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
+      }
+      const confidence = Number(action.confidence);
+      const remainsPossible = state.solutions.some(solution =>
+        solution.suspect === action.suspect && solution.weapon === action.weapon && solution.room === action.room);
+      if (remainsPossible && Number.isFinite(confidence) && confidence >= accusationThreshold()) {
         return { type: "accusation-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
       }
     }
@@ -246,7 +258,7 @@ async function askRelay(start, history, request, fallback, mode = "decision") {
     "Return exactly one JSON response object and no markdown.",
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
-    "For accuse-or-end, return an accusation only when justified and include a numeric confidence from 0 to 1; otherwise return {\"type\":\"turn-ended\"}.",
+    `For accuse-or-end, return an accusation when your confidence is at least ${accusationThreshold()} and include a numeric confidence from 0 to 1; otherwise return {"type":"turn-ended"}. Never accuse a triple ruled out by the local evidence.`,
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
