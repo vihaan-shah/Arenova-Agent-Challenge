@@ -181,7 +181,7 @@ npm run check
 ### Replay 11
 
 - This six-player match had AIAgent and five Baseline Bo opponents. The user description said four opponents, but the replay JSON contains six seats and names Baseline Bo, Baseline Bo 2, Baseline Bo 3, Baseline Bo 4, and Baseline Bo 5.
-- The replay metadata confirms that AIAgent used the submitted Clue package: its source hash matched the local `Clue/clue-agent.zip` exactly.
+- The replay metadata identifies the submitted package used in that run with source hash `17c5d9b0...`; this was the package before the later crowd-aware movement update.
 - The correct solution was Mrs. Peacock, Pistol, and Dining Room; Baseline Bo won.
 - The Baseline agents repeatedly gathered in and tested Dining Room, while AIAgent moved away to Ballroom on its later turn and did not participate in the busiest information cluster.
 - AIAgent remained legal and did not crash, but its relay-selected movement target was strategically weaker than following the visible group.
