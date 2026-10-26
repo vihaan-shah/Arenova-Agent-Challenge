@@ -64,7 +64,12 @@ function solutionIsPossible(start, all, shownToMe, candidate, deadline) {
   const suggestions = all.filter(event => event.type === "suggestion-made");
   for (const event of suggestions) {
     const cards = tripleFor(start, event.suggestion);
-    if (event.refuter === null && !sameTriple(cards, candidate)) return false;
+    // An unrefuted suggestion by another player is not conclusive: the
+    // suggester may privately hold one of the three cards and does not refute
+    // their own suggestion. Only our own unrefuted suggestion is conclusive,
+    // and only when none of its cards is already known to be in our hand.
+    if (event.refuter === null && event.suggester === me &&
+      !cards.some(card => shownToMe.has(card)) && !sameTriple(cards, candidate)) return false;
     if (event.refuter && event.passedSeats?.some(passed => cards.some(card => owners.get(card) === passed))) {
       return false;
     }
