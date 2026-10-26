@@ -144,6 +144,21 @@ function busiestRoom(start, history) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
 }
 
+function stagingRoom(start, current, target) {
+  if (!current || !target || current !== target) return null;
+  const doors = start.board?.doors ?? [];
+  const from = doors.filter(door => door.room === current).map(door => door.corridor);
+  if (!from.length) return null;
+  const rooms = (start.rooms ?? []).filter(room => room !== current);
+  const distance = room => {
+    const to = doors.filter(door => door.room === room).map(door => door.corridor);
+    if (!to.length) return Number.POSITIVE_INFINITY;
+    return Math.min(...from.flatMap(a => to.map(b =>
+      Math.abs(a.row - b.row) + Math.abs(a.column - b.column))));
+  };
+  return rooms.sort((a, b) => distance(a) - distance(b) || a.localeCompare(b))[0] ?? null;
+}
+
 function enforceFocusPair(start, history, fallback) {
   if (fallback?.type !== "suggestion-made") return fallback;
   if (!usablePair(start, history, focusPair)) focusPair = null;
@@ -280,10 +295,14 @@ async function handle(message) {
   if (request.kind === "take-turn") {
     const plan = await askRelay(start, message.history ?? [], request, null, "movement-plan");
     const crowded = busiestRoom(start, message.history ?? []);
+    const current = currentRoom(start, message.history ?? []);
+    const target = stagingRoom(start, current, crowded) ?? crowded;
     // Prefer rooms where other suspects have gathered: suggestions there can
     // move another suspect into the room and reveal more shared information.
+    // If already in that room, use a nearby staging room because the rules may
+    // require a pawn to leave before it can make another suggestion there.
     // The local engine still validates reachability and falls back safely.
-    preferredRoom = crowded ?? strategicRoom(start, message.history ?? []) ?? validateMovementPlan(start, plan);
+    preferredRoom = target ?? strategicRoom(start, message.history ?? []) ?? validateMovementPlan(start, plan);
   }
 
   let fallback = await safeHandle(message, { preferredRoom });
