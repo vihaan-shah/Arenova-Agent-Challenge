@@ -7,6 +7,7 @@ import { handle as safeHandle, snapshot as analyzeHistory } from "./clue-agent.m
 const MAX_AI_CALLS = 4; // Keeps worst-case relay cost within the documented seat budget.
 const DEFAULT_ACCUSATION_THRESHOLD = 0.65;
 const DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT = 2;
+const DEFAULT_FORCE_GUESS_AFTER_TURNS = 4;
 let aiCalls = 0;
 let focusPair = null;
 
@@ -18,6 +19,11 @@ function accusationThreshold() {
 function aggressiveCandidateLimit() {
   const configured = Number(process.env.CRUCIBLE_AI_AGGRESSIVE_CANDIDATE_LIMIT ?? DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT);
   return Number.isFinite(configured) ? Math.max(0, Math.floor(configured)) : DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT;
+}
+
+function forceGuessAfterTurns() {
+  const configured = Number(process.env.CRUCIBLE_AI_FORCE_GUESS_AFTER_TURNS ?? DEFAULT_FORCE_GUESS_AFTER_TURNS);
+  return Number.isFinite(configured) ? Math.max(0, Math.floor(configured)) : DEFAULT_FORCE_GUESS_AFTER_TURNS;
 }
 
 function allEvents(history) {
@@ -281,8 +287,12 @@ function validateMovementPlan(start, action) {
 function aggressiveAccusation(start, history, fallback) {
   if (fallback?.type !== "turn-ended") return fallback;
   const state = analyzeHistory(history);
+  if (!state.solutionsComplete) return fallback;
   const limit = aggressiveCandidateLimit();
-  if (!state.solutions.length || state.solutions.length > limit) return fallback;
+  const ownTurns = allEvents(history).filter(event =>
+    event.type === "turn-ended" && event.seat === start.you.seat).length;
+  const deadlineReached = ownTurns >= forceGuessAfterTurns();
+  if (!state.solutions.length || (state.solutions.length > limit && !deadlineReached)) return fallback;
 
   // Prefer the active focus pair when it still has a candidate; otherwise use
   // the solver's deterministic ordering. This is intentionally a bounded
@@ -311,7 +321,7 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
     `For accuse-or-end, return an accusation when your confidence is at least ${accusationThreshold()} and include a numeric confidence from 0 to 1; otherwise return {"type":"turn-ended"}. Never accuse a triple ruled out by the local evidence.`,
-    `When at most ${aggressiveCandidateLimit()} locally possible solutions remain, prefer a supported accusation over waiting; the wrapper may make a bounded fallback accusation if you return turn-ended.`,
+    `When at most ${aggressiveCandidateLimit()} locally possible solutions remain, prefer a supported accusation over waiting; after ${forceGuessAfterTurns()} of your completed turns, make your best supported accusation even if more candidates remain.`,
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
