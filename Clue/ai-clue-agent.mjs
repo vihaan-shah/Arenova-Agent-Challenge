@@ -5,7 +5,7 @@
 import { handle as safeHandle, snapshot as analyzeHistory } from "./clue-agent.mjs";
 
 const MAX_AI_CALLS = 4; // Keeps worst-case relay cost within the documented seat budget.
-const DEFAULT_ACCUSATION_THRESHOLD = 0.9;
+const DEFAULT_ACCUSATION_THRESHOLD = 0.8;
 let aiCalls = 0;
 let focusPair = null;
 
@@ -259,10 +259,11 @@ async function askRelay(start, history, request, fallback, mode = "decision") {
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
     `For accuse-or-end, return an accusation when your confidence is at least ${accusationThreshold()} and include a numeric confidence from 0 to 1; otherwise return {"type":"turn-ended"}. Never accuse a triple ruled out by the local evidence.`,
+    "Do not wait for a single remaining candidate: make the best-supported accusation when your confidence reaches the threshold.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
-    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), focusPair })}`,
+    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, focusPair })}`,
     `Compact setup and visible history: ${JSON.stringify({ start: compactSetup(start), history: compactHistory(history) })}`,
   ].join("\n");
 
