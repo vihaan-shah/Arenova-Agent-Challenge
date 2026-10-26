@@ -22,7 +22,7 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. JavaS
 8. Accuses as soon as only one solution triple remains possible.
 9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
-The AI relay is called only a limited number of times per match and is given only the visible setup and history. It may choose suggestions or a well-supported accusation. Movement is kept on the local legal engine so the model cannot invent an invalid path.
+The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for suggestions and accusation decisions; movement and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
 
 The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
 
@@ -51,6 +51,8 @@ These checks were run from the project root:
 | AI relay unavailable | Remove or block relay environment variables | Falls back to the deterministic agent without crashing. |
 | AI invalid suggestion | Return an invalid room/card combination | Rejects it and uses the safe local response. |
 | AI invalid movement | Return `pawn-moved` from the model | Rejects it and uses the locally generated legal movement. |
+| Call-budget routing | Send `take-turn`, `show-card`, and movement requests | No AI call is spent; the local engine handles them directly. |
+| Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
 
 ## Algorithmic-to-AI test case
 

@@ -42,6 +42,42 @@ function latestSuggestion(history, mySeat) {
   );
 }
 
+function compactSetup(start) {
+  // Movement is handled locally, so the AI does not need the giant 24x25
+  // board-cell list. Keeping only deduction-relevant fields saves relay cost.
+  return {
+    seats: start.seats,
+    turnOrder: start.turnOrder,
+    characters: start.characters,
+    handSizes: start.handSizes,
+    you: start.you,
+    hand: start.hand,
+    weaponPositions: start.weaponPositions,
+    activeSeat: start.activeSeat,
+    turn: start.turn,
+    roll: start.roll,
+    suspects: start.suspects,
+    weapons: start.weapons,
+    rooms: start.rooms,
+    cards: start.cards,
+  };
+}
+
+function compactHistory(history) {
+  return history.map(({ seq, event }) => {
+    const keep = (fields) => Object.fromEntries(fields
+      .filter(field => event[field] !== undefined)
+      .map(field => [field, event[field]]));
+    if (event.type === "game-started") return { seq, event: compactSetup(event) };
+    if (event.type === "pawn-moved") return { seq, event: keep(["type", "turn", "seat", "suspect", "to", "via", "cost"]) };
+    if (event.type === "suggestion-made") return { seq, event: keep(["type", "turn", "suggester", "suggestion", "passedSeats", "refuter", "pulledSeat"]) };
+    if (event.type === "card-shown") return { seq, event: keep(["type", "turn", "refuter", "shownTo", "card"]) };
+    if (event.type === "turn-ended") return { seq, event: keep(["type", "turn", "seat", "nextSeat", "nextRoll"]) };
+    if (event.type === "accusation-made") return { seq, event: keep(["type", "turn", "accuser", "accusation", "correct", "eliminated"]) };
+    return { seq, event };
+  });
+}
+
 function validateAiAction(start, history, request, action, fallback) {
   if (!action || typeof action !== "object") return fallback;
 
@@ -87,7 +123,7 @@ async function askRelay(start, history, request, fallback) {
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
-    `Setup and visible history: ${JSON.stringify({ start, history })}`,
+    `Compact setup and visible history: ${JSON.stringify({ start: compactSetup(start), history: compactHistory(history) })}`,
   ].join("\n");
 
   aiCalls += 1;
@@ -130,7 +166,9 @@ async function handle(message) {
 
   const fallback = await safeHandle(message);
   const request = message.decision;
-  if (!["take-turn", "make-suggestion", "show-card", "accuse-or-end"].includes(request.kind)) return fallback;
+  // The model is used only where it can add strategic value. Local code is
+  // already safer and faster for paths and card-refutation responses.
+  if (!["make-suggestion", "accuse-or-end"].includes(request.kind)) return fallback;
 
   const start = setup(message.history ?? []);
   if (!start) return fallback;
