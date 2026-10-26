@@ -226,13 +226,7 @@ npm run check
 - All four recorded accusation-decision relay responses were `turn-ended`, so the model—not the local validator—was choosing to wait.
 - Follow-up fix: the default AI accusation threshold is now 0.80 instead of 0.90, the prompt explicitly encourages a best-supported guess without requiring a unique candidate, and the model receives the local candidate count.
 
-### Replay 16: Aggressive finish regression
-
-- In the next six-player replay, all three AIAgent seats used the updated ZIP and matched its source hash exactly.
-- One AIAgent narrowed the case to two candidates but still returned `turn-ended`; Baseline Bo solved the case before another AIAgent turn.
-- Follow-up fix: lower the default confidence threshold to 0.65 and make a bounded fallback accusation when at most two candidates remain. This intentionally accepts a small elimination risk to avoid losing races where the agent is nearly certain but the model waits.
-
-### Replay 15: Baseline focus-pair and information-cluster regression
+### Replay 15
 
 - This six-player match had AIAgent alongside five Baseline Bo agents.
 - The correct solution was Mrs. White, Wrench, and Hall; Baseline Bo 4 won on turn 91.
@@ -240,4 +234,10 @@ npm run check
 - AIAgent made legal moves and suggestions, but its first turn ended in the corridor and its later suggestions changed from Colonel Mustard with the Knife to Mr. Green with the Knife. The match ended before AIAgent had enough evidence to make a supported accusation.
 - The replay also showed that spending reasoning calls on movement is less valuable than reserving them for suggestions and accusations; local movement remains responsible for legality.
 - Follow-up fix: movement now first targets an untested candidate room for the current suspect/weapon focus, recovering that focus from visible history when necessary. Only after the focus-room investigation is exhausted does it fall back to the busiest visible room and staging-room behavior. This preserves the Baseline strategy while retaining safe local pathfinding.
+
+### Replay 16
+
+- In the next six-player replay, all three AIAgent seats used the updated ZIP and matched its source hash exactly.
+- One AIAgent narrowed the case to two candidates but still returned `turn-ended`; Baseline Bo solved the case before another AIAgent turn.
+- Follow-up fix: lower the default confidence threshold to 0.65 and make a bounded fallback accusation when at most two candidates remain. This intentionally accepts a small elimination risk to avoid losing races where the agent is nearly certain but the model waits.
 
