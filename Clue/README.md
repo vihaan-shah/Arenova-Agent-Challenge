@@ -63,6 +63,7 @@ These checks were run from the project root:
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |
 | Evidence-directed movement | A focus pair has candidate rooms remaining | Movement targets an untested candidate room before asking the relay for a new general movement goal. |
 | Crowd-aware movement | Other suspects are already gathered in a room | Movement prefers the busiest visible room so the agent can participate in the same information-rich suggestions. If it must leave that room first, it uses the nearest staging room and targets the hub on the next turn. |
+| Empty AI response | The relay returns `content: null` or unusable output | The wrapper ignores it and uses the local legal movement or deduction fallback. |
 
 ## Algorithmic-to-AI test case
 
@@ -187,4 +188,14 @@ npm run check
 - AIAgent remained legal and did not crash, but its relay-selected movement target was strategically weaker than following the visible group.
 - Follow-up fix: movement now prefers the busiest visible room, while the local pathfinder still checks reachability and preserves a safe fallback.
 - Additional movement fix: when AIAgent is already in the busiest room and must leave before suggesting again, it chooses the nearest staging room so it can return to the information hub quickly.
+
+### Replay 12
+
+- This six-player match had AIAgent and five Baseline Bo opponents.
+- The replay metadata confirms that AIAgent used the current submitted package: its source hash matched the local `Clue/clue-agent.zip` exactly.
+- The correct solution was Colonel Mustard, Knife, and Study; Baseline Bo won.
+- AIAgent was playing Professor Plum. It made legal movement and eventually suggested Mr. Green with the Candlestick in the Ballroom, but the match ended on the next Baseline Bo turn.
+- Two AIAgent movement-planning relay calls returned `content: null`, so the local legal fallback handled those decisions safely. A later accusation-decision call returned `turn-ended`.
+- Baseline Bo narrowed the case by testing Colonel Mustard with the Knife in Conservatory and then Study, keeping the suspect/weapon pair stable while changing rooms before making the correct accusation.
+- Improvement target: require structured JSON from movement-planning calls and prioritize the fastest reachable information room. The local fallback prevented a crash, but this short match gave AIAgent only one useful suggestion.
 
