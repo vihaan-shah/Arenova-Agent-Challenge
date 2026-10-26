@@ -126,6 +126,24 @@ function strategicRoom(start, history) {
   return rooms.sort((a, b) => Number(tested.has(a)) - Number(tested.has(b)) || a.localeCompare(b))[0] ?? null;
 }
 
+function busiestRoom(start, history) {
+  const positions = Object.fromEntries(
+    Object.entries(start.suspectPositions ?? {}).map(([suspect, position]) => [suspect, { ...position }]),
+  );
+  for (const event of allEvents(history)) {
+    if (event.type === "pawn-moved") positions[event.suspect] = event.to;
+    if (event.type === "suggestion-made") {
+      positions[event.suggestion.suspect] = { kind: "room", room: event.suggestion.room };
+    }
+  }
+  const counts = new Map();
+  for (const position of Object.values(positions)) {
+    if (position?.kind === "room" && position.room) counts.set(position.room, (counts.get(position.room) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
+}
+
 function enforceFocusPair(start, history, fallback) {
   if (fallback?.type !== "suggestion-made") return fallback;
   if (!usablePair(start, history, focusPair)) focusPair = null;
@@ -261,9 +279,11 @@ async function handle(message) {
   let preferredRoom = null;
   if (request.kind === "take-turn") {
     const plan = await askRelay(start, message.history ?? [], request, null, "movement-plan");
-    // Once a pair is established, room testing is more valuable than a new
-    // unstructured movement goal. The local engine still validates reachability.
-    preferredRoom = strategicRoom(start, message.history ?? []) ?? validateMovementPlan(start, plan);
+    const crowded = busiestRoom(start, message.history ?? []);
+    // Prefer rooms where other suspects have gathered: suggestions there can
+    // move another suspect into the room and reveal more shared information.
+    // The local engine still validates reachability and falls back safely.
+    preferredRoom = crowded ?? strategicRoom(start, message.history ?? []) ?? validateMovementPlan(start, plan);
   }
 
   let fallback = await safeHandle(message, { preferredRoom });

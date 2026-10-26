@@ -62,6 +62,7 @@ These checks were run from the project root:
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |
 | Evidence-directed movement | A focus pair has candidate rooms remaining | Movement targets an untested candidate room before asking the relay for a new general movement goal. |
+| Crowd-aware movement | Other suspects are already gathered in a room | Movement prefers the busiest visible room so the agent can participate in the same information-rich suggestions. |
 
 ## Algorithmic-to-AI test case
 
@@ -176,4 +177,13 @@ npm run check
 - After the visible constraints narrowed the remaining solution, AIAgent correctly accused Mrs. White with the Candlestick in the Dining Room.
 - The replay recorded four relay calls using `openai/gpt-6-luna`; all game responses remained protocol-valid.
 - This is the first recorded replay in which the updated AI agent solved the case before the Baseline Bo agents.
+
+### Replay 11
+
+- This six-player match had AIAgent and five Baseline Bo opponents. The user description said four opponents, but the replay JSON contains six seats and names Baseline Bo, Baseline Bo 2, Baseline Bo 3, Baseline Bo 4, and Baseline Bo 5.
+- The replay metadata confirms that AIAgent used the submitted Clue package: its source hash matched the local `Clue/clue-agent.zip` exactly.
+- The correct solution was Mrs. Peacock, Pistol, and Dining Room; Baseline Bo won.
+- The Baseline agents repeatedly gathered in and tested Dining Room, while AIAgent moved away to Ballroom on its later turn and did not participate in the busiest information cluster.
+- AIAgent remained legal and did not crash, but its relay-selected movement target was strategically weaker than following the visible group.
+- Follow-up fix: movement now prefers the busiest visible room, while the local pathfinder still checks reachability and preserves a safe fallback.
 
