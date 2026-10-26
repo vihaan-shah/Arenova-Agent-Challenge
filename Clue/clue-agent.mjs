@@ -254,7 +254,7 @@ function latestSuggestionRefutedByMe(history, mySeat) {
   );
 }
 
-function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all) {
+function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all, preferredRoom = null) {
   const character = start.you.character;
   const origin = positions[character];
   const board = start.board;
@@ -270,7 +270,10 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   if (origin.kind === "room") {
     if (maySuggestWithoutMoving) return chooseSuggestion(start, origin.room, shownToMe, solutions, all);
 
-    const passage = board.secretPassages?.find(({ from, to }) => from === origin.room || to === origin.room);
+    const passage = board.secretPassages?.find(({ from, to }) =>
+      (from === origin.room || to === origin.room) &&
+      (!preferredRoom || from === preferredRoom || to === preferredRoom),
+    );
     if (passage) {
       const enterRoom = passage.from === origin.room ? passage.to : passage.from;
       return { type: "pawn-moved", path: [], enterRoom, useSecretPassage: true };
@@ -283,9 +286,9 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
       board.rows[point.row][point.column] === "-";
   }
 
-  function search(at, path, visited, forbiddenRoom = null) {
+  function search(at, path, visited, forbiddenRoom = null, targetRoom = null) {
     const door = board.doors.find(({ corridor }) => samePoint(corridor, at));
-    if (door && path.length > 0 && door.room !== forbiddenRoom) {
+    if (door && path.length > 0 && door.room !== forbiddenRoom && (!targetRoom || door.room === targetRoom)) {
       return { type: "pawn-moved", path, enterRoom: door.room };
     }
     if (path.length === distance) return { type: "pawn-moved", path };
@@ -299,14 +302,15 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
     for (const next of neighbors) {
       const nextKey = key(next);
       if (!isOpen(next) || startingSquares.has(nextKey) || occupied.has(nextKey) || visited.has(nextKey)) continue;
-      const result = search(next, [...path, next], new Set([...visited, nextKey]), forbiddenRoom);
+      const result = search(next, [...path, next], new Set([...visited, nextKey]), forbiddenRoom, targetRoom);
       if (result) return result;
     }
     return null;
   }
 
   if (origin.kind === "corridor") {
-    return search(origin, [], new Set([key(origin)])) ?? { type: "turn-ended" };
+    return search(origin, [], new Set([key(origin)]), null, preferredRoom) ??
+      search(origin, [], new Set([key(origin)])) ?? { type: "turn-ended" };
   }
 
   // From a room, leave through any unblocked door. Entering another room may
@@ -314,13 +318,14 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   for (const door of board.doors.filter(({ room }) => room === origin.room)) {
     const doorKey = key(door.corridor);
     if (startingSquares.has(doorKey) || occupied.has(doorKey) || !isOpen(door.corridor)) continue;
-    const result = search(door.corridor, [door.corridor], new Set([doorKey]), origin.room);
+    const result = search(door.corridor, [door.corridor], new Set([doorKey]), origin.room, preferredRoom) ??
+      search(door.corridor, [door.corridor], new Set([doorKey]), origin.room);
     if (result) return result;
   }
   return { type: "turn-ended" };
 }
 
-function decide(history, request) {
+function decide(history, request, options = {}) {
   const state = snapshot(history);
   const { start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all } = state;
 
@@ -329,7 +334,7 @@ function decide(history, request) {
     if (state.knownSolution) {
       return { type: "accusation-made", ...state.knownSolution };
     }
-    return movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all);
+    return movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all, options.preferredRoom ?? null);
   }
 
   if (request.kind === "make-suggestion") {
@@ -360,11 +365,11 @@ function decide(history, request) {
   throw new Error("unexpected decision kind");
 }
 
-async function handle(message) {
+async function handle(message, options = {}) {
   if (message.type === "init") { seat = message.seat; return {}; }
   if (message.type !== "decision") throw new Error("unknown request type");
   requestsHandled += 1;
-  return decide(message.history ?? [], message.decision);
+  return decide(message.history ?? [], message.decision, options);
 }
 
 export { handle };

@@ -22,7 +22,9 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 8. Accuses as soon as only one solution triple remains possible.
 9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
-The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for suggestions and accusation decisions; movement and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
+The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
+
+The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary, and accusations require a confidence score; the threshold is relaxed slightly only in the final turns.
 
 The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
 
@@ -53,6 +55,8 @@ These checks were run from the project root:
 | AI invalid movement | Return `pawn-moved` from the model | Rejects it and uses the locally generated legal movement. |
 | Call-budget routing | Send `take-turn`, `show-card`, and movement requests | No AI call is spent; the local engine handles them directly. |
 | Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
+| AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
+| Confidence-gated accusation | Model returns an accusation with confidence | The agent accepts it only above the required confidence threshold. |
 
 ## Algorithmic-to-AI test case
 

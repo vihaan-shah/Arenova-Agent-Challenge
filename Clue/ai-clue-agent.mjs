@@ -78,6 +78,24 @@ function compactHistory(history) {
   });
 }
 
+function evidenceSummary(start, history) {
+  const knownNotSolution = new Set(start.hand ?? []);
+  const observations = [];
+  for (const event of allEvents(history)) {
+    if (event.type === "card-shown" && event.shownTo === start.you.seat && event.card) {
+      knownNotSolution.add(event.card);
+    }
+    if (event.type === "suggestion-made") {
+      observations.push({
+        suggestion: event.suggestion,
+        passedSeats: event.passedSeats ?? [],
+        refuter: event.refuter ?? null,
+      });
+    }
+  }
+  return { knownNotSolution: [...knownNotSolution], observations };
+}
+
 function validateAiAction(start, history, request, action, fallback) {
   if (!action || typeof action !== "object") return fallback;
 
@@ -101,28 +119,45 @@ function validateAiAction(start, history, request, action, fallback) {
   if (request.kind === "accuse-or-end" || request.kind === "take-turn") {
     // Movement remains on the deterministic fallback path. The model may
     // override it only with a structurally valid accusation.
-    if (action.type === "accusation-made" && validTriple(start, action)) return action;
+    if (action.type === "accusation-made" && validTriple(start, action) &&
+      Number(action.confidence) >= accusationThreshold(start, history)) return action;
     return fallback;
   }
 
   return fallback;
 }
 
-async function askRelay(start, history, request, fallback) {
+function validateMovementPlan(start, action) {
+  if (action && typeof action.targetRoom === "string" && (start.rooms ?? []).includes(action.targetRoom)) {
+    return action.targetRoom;
+  }
+  return null;
+}
+
+function accusationThreshold(start, history) {
+  const currentTurn = Math.max(start.turn ?? 1, ...allEvents(history).map(event => event.turn ?? 0));
+  return start.turnLimit && currentTurn >= start.turnLimit - 3 ? 0.75 : 0.93;
+}
+
+async function askRelay(start, history, request, fallback, mode = "decision") {
   const baseUrl = process.env.OPENAI_BASE_URL;
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.CRUCIBLE_AI_MODEL;
   if (!baseUrl || !apiKey || !model || aiCalls >= MAX_AI_CALLS) return null;
 
+  const movementInstruction = mode === "movement-plan"
+    ? "For this movement-planning request, return exactly {\"targetRoom\":\"room-id\"}. Choose a room that would best distinguish remaining possibilities; do not return a path or game response."
+    : "For make-suggestion, use the current room and valid suspect/weapon IDs.";
   const prompt = [
     "You are the reasoning component of a Clue board-game agent.",
     "Use only the visible setup and history below. Never invent hidden cards or events.",
     "Return exactly one JSON response object and no markdown.",
-    "For make-suggestion, use the current room and valid suspect/weapon IDs.",
-    "For accuse-or-end or take-turn, accuse only when the suspect, weapon, and room are strongly justified; otherwise return {\"type\":\"turn-ended\"}.",
+    movementInstruction,
+    "For accuse-or-end, return an accusation only when justified and include a numeric confidence from 0 to 1; otherwise return {\"type\":\"turn-ended\"}.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
+    `Deduction evidence: ${JSON.stringify(evidenceSummary(start, history))}`,
     `Compact setup and visible history: ${JSON.stringify({ start: compactSetup(start), history: compactHistory(history) })}`,
   ].join("\n");
 
@@ -164,15 +199,23 @@ async function handle(message) {
   }
   if (message.type !== "decision") return safeHandle(message);
 
-  const fallback = await safeHandle(message);
   const request = message.decision;
+  const start = setup(message.history ?? []);
+  if (!start) return safeHandle(message);
+
+  let preferredRoom = null;
+  if (request.kind === "take-turn") {
+    const plan = await askRelay(start, message.history ?? [], request, null, "movement-plan");
+    preferredRoom = validateMovementPlan(start, plan);
+  }
+
+  const fallback = await safeHandle(message, { preferredRoom });
+
   // The model is used only where it can add strategic value. Local code is
   // already safer and faster for paths and card-refutation responses.
   if (!["make-suggestion", "accuse-or-end"].includes(request.kind)) return fallback;
 
-  const start = setup(message.history ?? []);
-  if (!start) return fallback;
-  const aiAction = await askRelay(start, message.history ?? [], request, fallback);
+  const aiAction = await askRelay(start, message.history ?? [], request, fallback, "decision");
   return validateAiAction(start, message.history ?? [], request, aiAction, fallback);
 }
 
