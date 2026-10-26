@@ -118,18 +118,41 @@ function usablePair(start, history, pair) {
 }
 
 function strategicRoom(start, history) {
-  if (!usablePair(start, history, focusPair)) return null;
+  const pair = usablePair(start, history, focusPair)
+    ? focusPair
+    : historyFocusPair(start, history);
+  if (!pair) return null;
   const state = analyzeHistory(history);
   const tested = new Set(allEvents(history)
     .filter(event => event.type === "suggestion-made" &&
-      event.suggestion.suspect === focusPair.suspect &&
-      event.suggestion.weapon === focusPair.weapon)
+      event.suggestion.suspect === pair.suspect &&
+      event.suggestion.weapon === pair.weapon)
     .map(event => event.suggestion.room));
   const candidates = state.solutions
-    .filter(solution => solution.suspect === focusPair.suspect && solution.weapon === focusPair.weapon)
+    .filter(solution => solution.suspect === pair.suspect && solution.weapon === pair.weapon)
     .map(solution => solution.room);
   const rooms = [...new Set(candidates)];
-  return rooms.sort((a, b) => Number(tested.has(a)) - Number(tested.has(b)) || a.localeCompare(b))[0] ?? null;
+  return rooms
+    .filter(room => !tested.has(room))
+    .sort((a, b) => a.localeCompare(b))[0] ?? null;
+}
+
+// The deterministic engine can restart without the wrapper's in-memory
+// focusPair, so recover the Baseline-style suspect/weapon focus from history.
+function historyFocusPair(start, history) {
+  const known = new Set(start.hand ?? []);
+  for (const event of allEvents(history)) {
+    if (event.type === "card-shown" && event.shownTo === start.you.seat && event.card) known.add(event.card);
+  }
+  for (const event of [...allEvents(history)].reverse()) {
+    if (event.type !== "suggestion-made" || event.suggester !== start.you.seat) continue;
+    const pair = { suspect: event.suggestion.suspect, weapon: event.suggestion.weapon };
+    if ((start.suspects ?? []).includes(pair.suspect) &&
+        (start.weapons ?? []).includes(pair.weapon) &&
+        !known.has(`suspect:${pair.suspect}`) &&
+        !known.has(`weapon:${pair.weapon}`)) return pair;
+  }
+  return null;
 }
 
 function busiestRoom(start, history) {
@@ -166,8 +189,14 @@ function stagingRoom(start, current, target) {
 }
 
 function localRoomGoal(start, history) {
-  const crowded = busiestRoom(start, history);
+  // First finish testing the current suspect/weapon hypothesis in a new room.
+  // This is the strongest repeatable Baseline pattern in the replay: keep two
+  // cards fixed and use room changes to isolate the solution room.
+  const focused = strategicRoom(start, history);
   const current = currentRoom(start, history);
+  if (focused) return stagingRoom(start, current, focused) ?? focused;
+
+  const crowded = busiestRoom(start, history);
   return stagingRoom(start, current, crowded) ?? crowded ?? strategicRoom(start, history);
 }
 

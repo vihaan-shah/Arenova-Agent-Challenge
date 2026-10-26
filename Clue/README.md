@@ -225,3 +225,12 @@ npm run check
 - All four recorded accusation-decision relay responses were `turn-ended`, so the model—not the local validator—was choosing to wait.
 - Follow-up fix: the default AI accusation threshold is now 0.80 instead of 0.90, the prompt explicitly encourages a best-supported guess without requiring a unique candidate, and the model receives the local candidate count.
 
+### Replay 15: Baseline focus-pair and information-cluster regression
+
+- This six-player match had AIAgent alongside five Baseline Bo agents.
+- The correct solution was Mrs. White, Wrench, and Hall; Baseline Bo 4 won on turn 91.
+- Baseline Bo repeatedly gathered useful evidence by keeping suspect/weapon hypotheses stable while changing rooms. Its final sequence tested the Hall after earlier suggestions in the Ballroom, Billiard Room, Lounge, and Library, then made the supported accusation.
+- AIAgent made legal moves and suggestions, but its first turn ended in the corridor and its later suggestions changed from Colonel Mustard with the Knife to Mr. Green with the Knife. The match ended before AIAgent had enough evidence to make a supported accusation.
+- The replay also showed that spending reasoning calls on movement is less valuable than reserving them for suggestions and accusations; local movement remains responsible for legality.
+- Follow-up fix: movement now first targets an untested candidate room for the current suspect/weapon focus, recovering that focus from visible history when necessary. Only after the focus-room investigation is exhausted does it fall back to the busiest visible room and staging-room behavior. This preserves the Baseline strategy while retaining safe local pathfinding.
+
