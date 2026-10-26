@@ -2,13 +2,13 @@
 
 ## What this is
 
-This is a Clue player for the Arenova Agent Challenge.
+This is an AI-assisted Clue player for the Arenova Agent Challenge.
 
-The agent reads one JSON message per line from standard input and writes one JSON response per line. It supports movement, suggestions, showing a card, and accusations.
+The agent reads one JSON message per line from standard input and writes one JSON response per line. It uses the Arenova local AI relay for strategic reasoning, with a local legality-safe fallback for movement and malformed model responses.
 
 ## Why JavaScript and Node.js?
 
-The challenge provides a JavaScript/Node.js runtime. JavaScript makes the JSON protocol simple to handle, and Node.js can process the runner's line-based input without extra dependencies.
+The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. JavaScript makes the JSON protocol simple to handle, while Node.js provides `fetch` and keeps the long-running process lightweight.
 
 ## How the agent plays
 
@@ -22,11 +22,14 @@ The challenge provides a JavaScript/Node.js runtime. JavaScript makes the JSON p
 8. Accuses as soon as only one solution triple remains possible.
 9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
+The AI relay is called only a limited number of times per match and is given only the visible setup and history. It may choose suggestions or a well-supported accusation. Movement is kept on the local legal engine so the model cannot invent an invalid path.
+
 The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
 
 ## Files
 
-- `clue-agent.mjs` — the submission agent.
+- `ai-clue-agent.mjs` — the AI-assisted submission entrypoint.
+- `clue-agent.mjs` — the deterministic legality and fallback engine.
 - `crucible.json` — tells the runner to use Node 24 and the entrypoint.
 - `README.md` — this explanation.
 
@@ -45,6 +48,9 @@ These checks were run from the project root:
 | Room movement | Give a room position and an open door | Returns a legal `pawn-moved` response. |
 | Secret passage | Give a room with a connected secret passage | Returns an empty path with `useSecretPassage: true`. |
 | Blocked movement | Occupy available corridor squares | Avoids occupied squares and ends the turn only when no legal route exists. |
+| AI relay unavailable | Remove or block relay environment variables | Falls back to the deterministic agent without crashing. |
+| AI invalid suggestion | Return an invalid room/card combination | Rejects it and uses the safe local response. |
+| AI invalid movement | Return `pawn-moved` from the model | Rejects it and uses the locally generated legal movement. |
 
 Run the syntax check with:
 

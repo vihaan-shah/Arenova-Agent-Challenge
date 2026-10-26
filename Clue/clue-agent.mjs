@@ -367,15 +367,21 @@ async function handle(message) {
   return decide(message.history ?? [], message.decision);
 }
 
-const { createInterface } = await import("node:readline");
-const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of lines) {
-  try {
-    process.stdout.write(JSON.stringify(await handle(JSON.parse(line))) + "\n");
-  } catch (error) {
-    console.error(error);
-    process.exitCode = 1;
-    lines.close();
-    break;
+export { handle };
+
+async function run() {
+  const { createInterface } = await import("node:readline");
+  const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  for await (const line of lines) {
+    try {
+      process.stdout.write(JSON.stringify(await handle(JSON.parse(line))) + "\n");
+    } catch (error) {
+      console.error(error);
+      process.exitCode = 1;
+      lines.close();
+      break;
+    }
   }
 }
+
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) await run();

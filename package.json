@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check Connect4/connect4-agent.mjs && node --check Clue/clue-agent.mjs"
+    "check": "node --check Connect4/connect4-agent.mjs && node --check Clue/clue-agent.mjs && node --check Clue/ai-clue-agent.mjs"
   }
 }

@@ -1,4 +1,4 @@
 {
   "runtime": "node24",
-  "entrypoint": "clue-agent.mjs"
+  "entrypoint": "ai-clue-agent.mjs"
 }
