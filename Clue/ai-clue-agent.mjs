@@ -111,6 +111,18 @@ function usablePair(start, history, pair) {
   return !known.has(`suspect:${pair.suspect}`) && !known.has(`weapon:${pair.weapon}`);
 }
 
+function enforceFocusPair(start, history, fallback) {
+  if (fallback?.type !== "suggestion-made") return fallback;
+  if (!usablePair(start, history, focusPair)) focusPair = null;
+  if (!focusPair) {
+    const proposed = { suspect: fallback.suspect, weapon: fallback.weapon };
+    if (usablePair(start, history, proposed)) focusPair = proposed;
+  }
+  return focusPair
+    ? { type: "suggestion-made", suspect: focusPair.suspect, weapon: focusPair.weapon, room: fallback.room }
+    : fallback;
+}
+
 function validateAiAction(start, history, request, action, fallback) {
   if (!action || typeof action !== "object") return fallback;
 
@@ -237,11 +249,11 @@ async function handle(message) {
     preferredRoom = validateMovementPlan(start, plan);
   }
 
-  const fallback = await safeHandle(message, { preferredRoom });
-
-  if (request.kind === "make-suggestion" && !focusPair && fallback.type === "suggestion-made") {
-    const proposed = { suspect: fallback.suspect, weapon: fallback.weapon };
-    if (usablePair(start, message.history ?? [], proposed)) focusPair = proposed;
+  let fallback = await safeHandle(message, { preferredRoom });
+  if (request.kind === "make-suggestion") {
+    // The stable-pair policy applies even when the relay is unavailable or
+    // returns malformed/strategically inconsistent output.
+    fallback = enforceFocusPair(start, message.history ?? [], fallback);
   }
 
   // The model is used only where it can add strategic value. Local code is

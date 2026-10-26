@@ -59,7 +59,7 @@ These checks were run from the project root:
 | Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
 | Evidence-gated accusation | Model returns a confident accusation | The agent accepts it only when the local constraint solver independently has one solution left. |
-| Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards. |
+| Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 
 ## Algorithmic-to-AI test case
 
@@ -132,6 +132,8 @@ npm run check
 - Baseline Bo repeatedly tested a stable suspect/weapon combination across several rooms and correctly waited until the Billiard Room was supported before accusing.
 - AIAgent made legal moves and suggestions but changed its suspect/weapon focus more often and did not solve the case before Baseline Bo.
 - Follow-up fix: the AI agent now keeps a focus pair across room suggestions and changes it only when visible evidence rules out a component.
+
+- Additional enforcement: the local wrapper applies the same focus pair to fallback suggestions, so relay failures or inconsistent model choices cannot silently switch both cards.
 
 ### Replay 8
 
