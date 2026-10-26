@@ -8,7 +8,7 @@ The agent reads one JSON message per line from standard input and writes one JSO
 
 ## Why JavaScript and Node.js?
 
-The challenge provides a JavaScript/Node.js runtime. JavaScript is a good fit because the protocol is JSON-based, Node.js can read the input stream line by line, and no extra libraries are needed.
+The challenge provides a JavaScript/Node.js runtime. I also have prior Java experience from school, so familiar concepts such as variables, loops, functions, conditionals, and structured objects transferred naturally to JavaScript. Node.js is a good fit because the protocol is JSON-based, it can read the input stream line by line, and no extra libraries are needed.
 
 ## How the agent plays
 
@@ -43,4 +43,17 @@ Run the syntax check with:
 ```bash
 npm run check
 ```
+
+## Recorded replay tests
+
+All six submitted Connect 4 replays completed normally, and CCv2 won each match without a forfeit or invalid move:
+
+| Replay | Opponent | CCv2 seat/color | Result |
+| --- | --- | --- | --- |
+| `0e640298-628c-4bee-b53c-ccc4dad8de28` | Average Aaron | seat 1 / red | CCv2 won by connecting four. |
+| `7ef9e0ef-549f-44c4-94e5-7125599a0abd` | Luna | seat 2 / red | CCv2 won by connecting four. |
+| `8f7f3c6d-8205-416b-94ca-7c0877cc8d2d` | Luna | seat 1 / yellow | CCv2 won by connecting four. |
+| `992da13d-b180-419b-a1f2-d88e96379cff` | Luna | seat 1 / yellow | CCv2 won by connecting four. |
+| `b9245f76-0e09-4e98-9ddd-6f90e152a0b2` | Luna | seat 1 / red | CCv2 won by connecting four. |
+| `e333a547-da74-4edb-b107-2ba194e397b4` | Random Randy | seat 1 / red | CCv2 won by connecting four. |
 

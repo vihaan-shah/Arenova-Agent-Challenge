@@ -8,7 +8,7 @@ The agent reads one JSON message per line from standard input and writes one JSO
 
 ## Why JavaScript and Node.js?
 
-The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. JavaScript makes the JSON protocol simple to handle, while Node.js provides `fetch` and keeps the long-running process lightweight.
+The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I also have prior Java experience from school, so familiar concepts such as variables, loops, functions, conditionals, and structured objects transferred naturally to JavaScript. Node.js provides `fetch`, handles the JSON protocol cleanly, and keeps the long-running process lightweight.
 
 ## How the agent plays
 
