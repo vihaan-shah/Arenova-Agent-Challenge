@@ -5,34 +5,8 @@
 import { handle as safeHandle, snapshot as analyzeHistory } from "./clue-agent.mjs";
 
 const MAX_AI_CALLS = 4; // Keeps worst-case relay cost within the documented seat budget.
-const DEFAULT_ACCUSATION_THRESHOLD = 0.65;
-const DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT = 2;
-const DEFAULT_FORCE_GUESS_AFTER_TURNS = 4;
 let aiCalls = 0;
 let focusPair = null;
-
-function accusationThreshold() {
-  const configured = Number(process.env.CRUCIBLE_AI_ACCUSATION_THRESHOLD ?? DEFAULT_ACCUSATION_THRESHOLD);
-  return Number.isFinite(configured) ? Math.min(1, Math.max(0, configured)) : DEFAULT_ACCUSATION_THRESHOLD;
-}
-
-function aggressiveCandidateLimit() {
-  const configured = Number(process.env.CRUCIBLE_AI_AGGRESSIVE_CANDIDATE_LIMIT ?? DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT);
-  return Number.isFinite(configured) ? Math.max(0, Math.floor(configured)) : DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT;
-}
-
-function forceGuessAfterTurns() {
-  const configured = Number(process.env.CRUCIBLE_AI_FORCE_GUESS_AFTER_TURNS ?? DEFAULT_FORCE_GUESS_AFTER_TURNS);
-  return Number.isFinite(configured) ? Math.max(0, Math.floor(configured)) : DEFAULT_FORCE_GUESS_AFTER_TURNS;
-}
-
-function roomCertainForPair(state, suspect, weapon, room) {
-  const pairCandidates = state.solutions.filter(solution =>
-    solution.suspect === suspect && solution.weapon === weapon);
-  return pairCandidates.length > 0 &&
-    new Set(pairCandidates.map(solution => solution.room)).size === 1 &&
-    pairCandidates[0].room === room;
-}
 
 function allEvents(history) {
   return history.map(item => item.event);
@@ -262,26 +236,13 @@ function validateAiAction(start, history, request, action, fallback) {
   }
 
   if (request.kind === "accuse-or-end" || request.kind === "take-turn") {
-    // Movement remains on the deterministic fallback path. The model may
-    // make a high-confidence accusation when it remains locally possible,
-    // even if more than one candidate is unresolved.
+    // Movement remains on the deterministic fallback path. Accusations are
+    // accepted only when the local solver proves the complete triple.
     if (action.type === "accusation-made" && validTriple(start, action)) {
       const state = analyzeHistory(history);
       const certain = state.knownSolution;
       if (certain && action.suspect === certain.suspect &&
         action.weapon === certain.weapon && action.room === certain.room) {
-        return { type: "accusation-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
-      }
-      // Knowing the suspect and weapon is not enough. The room must also be
-      // the only room still possible for that pair; otherwise this is the
-      // exact premature-accusation failure the aggressive mode is meant to avoid.
-      if (!state.solutionsComplete || !roomCertainForPair(state, action.suspect, action.weapon, action.room)) {
-        return fallback;
-      }
-      const confidence = Number(action.confidence);
-      const remainsPossible = state.solutions.some(solution =>
-        solution.suspect === action.suspect && solution.weapon === action.weapon && solution.room === action.room);
-      if (remainsPossible && Number.isFinite(confidence) && confidence >= accusationThreshold()) {
         return { type: "accusation-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
       }
     }
@@ -296,29 +257,6 @@ function validateMovementPlan(start, action) {
     return action.targetRoom;
   }
   return null;
-}
-
-function aggressiveAccusation(start, history, fallback) {
-  if (fallback?.type !== "turn-ended") return fallback;
-  const state = analyzeHistory(history);
-  if (!state.solutionsComplete) return fallback;
-  const limit = aggressiveCandidateLimit();
-  const ownTurns = allEvents(history).filter(event =>
-    event.type === "turn-ended" && event.seat === start.you.seat).length;
-  const deadlineReached = ownTurns >= forceGuessAfterTurns();
-  if (!state.solutions.length || (state.solutions.length > limit && !deadlineReached)) return fallback;
-
-  // Never choose an arbitrary room. A bounded accusation is allowed only for
-  // the active focus pair after every remaining candidate for that pair points
-  // to the same room.
-  const pair = usablePair(start, history, focusPair)
-    ? focusPair
-    : historyFocusPair(start, history);
-  if (!pair) return fallback;
-  const focused = state.solutions.filter(solution =>
-    solution.suspect === pair.suspect && solution.weapon === pair.weapon);
-  if (focused.length !== 1) return fallback;
-  return { type: "accusation-made", ...focused[0] };
 }
 
 async function askRelay(start, history, request, fallback, mode = "decision", rejectedAction = null) {
@@ -336,8 +274,7 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
     "Return exactly one JSON response object and no markdown.",
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
-    `For accuse-or-end, return an accusation when your confidence is at least ${accusationThreshold()} and include a numeric confidence from 0 to 1; otherwise return {"type":"turn-ended"}. Never accuse a triple ruled out by the local evidence.`,
-    `When at most ${aggressiveCandidateLimit()} locally possible solutions remain, prefer a supported accusation over waiting; after ${forceGuessAfterTurns()} of your completed turns, make your best supported accusation even if more candidates remain.`,
+    "For accuse-or-end, return an accusation only when the local evidence proves one exact suspect/weapon/room triple; otherwise return {\"type\":\"turn-ended\"}. Confidence is not enough when any alternative triple remains.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
@@ -425,9 +362,7 @@ async function handle(message) {
     const replacement = await askRelay(start, message.history ?? [], request, fallback, "decision", aiAction);
     return validateAiAction(start, message.history ?? [], request, replacement, fallback);
   }
-  return request.kind === "accuse-or-end"
-    ? aggressiveAccusation(start, message.history ?? [], result)
-    : result;
+  return result;
 }
 
 async function run() {

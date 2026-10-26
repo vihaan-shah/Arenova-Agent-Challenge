@@ -19,14 +19,14 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 5. Suggests the current room, choosing suspect and weapon cards not known to be in its hand.
 6. Shows a matching card when it is asked to refute a suggestion.
 7. Builds possible solution triples from hand sizes, known cards, passed players, and refutations.
-8. Accuses when the local solver proves the solution, or when the AI reaches its confidence threshold on a still-possible triple.
+8. Accuses only when the local solver proves the unique solution; otherwise it keeps gathering evidence and making legal suggestions.
 9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
 The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
 
-The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary and the number of locally possible solutions. AI accusations use a confidence threshold (0.65 by default): the local constraint solver must still consider the triple possible, and the room must be the only remaining room for the proposed suspect/weapon pair. If the model declines to accuse while at most two candidates remain, the wrapper makes a bounded accusation only when the focus pair has a single remaining room. After four completed turns, it makes the same bounded attempt whenever deduction has completed and the focus pair's room is certain. It never guesses an arbitrary room.
+The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary and the number of locally possible solutions. Accusations are certainty-gated: the local solver must identify exactly one complete suspect/weapon/room triple. The AI cannot override that gate with confidence, and the agent continues making legal suggestions while multiple triples remain possible.
 
-The threshold can be adjusted with `CRUCIBLE_AI_ACCUSATION_THRESHOLD`, from `0` to `1`; the default is `0.65`. The bounded fallback limit can be adjusted with `CRUCIBLE_AI_AGGRESSIVE_CANDIDATE_LIMIT`; the default is `2`. The turn deadline can be adjusted with `CRUCIBLE_AI_FORCE_GUESS_AFTER_TURNS`; the default is `4`. These settings control how soon the agent attempts a supported accusation, but they cannot bypass the room-certainty gate. Incomplete deduction results caused by the solver time limit are never treated as evidence for an accusation.
+Incomplete deduction results caused by the solver time limit are never treated as evidence for an accusation.
 
 If the model proposes an accusation that the local solver rejects, the wrapper makes one recovery request asking for a different possible triple. A second invalid or under-confident response still falls back to `turn-ended`.
 
@@ -62,9 +62,8 @@ These checks were run from the project root:
 | Call-budget routing | Send `take-turn`, `show-card`, and movement requests | No AI call is spent; the local engine handles them directly. |
 | Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
-| Confidence-gated accusation | Model returns a confident accusation | The agent accepts it when confidence is at least 0.65 and the local constraint solver still considers the triple possible. |
-| Aggressive accusation fallback | Model returns `turn-ended` with two or fewer candidates | The wrapper accuses only when the focus pair has exactly one remaining room. |
-| Forced guess deadline | Model keeps returning `turn-ended` after four completed turns | The wrapper attempts an accusation only from a complete candidate set with a certain room. |
+| Certainty-gated accusation | Model returns a confident accusation | The agent accepts it only when the local solver identifies exactly one complete solution triple. |
+| Continued investigation | Multiple solution triples remain | The agent returns `turn-ended` for accusation requests and continues making legal room suggestions on later turns. |
 | Accusation recovery | The model proposes an impossible or under-confident accusation | The agent sends the rejection context back once and asks for a different possible triple before ending the turn. |
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |
@@ -269,5 +268,5 @@ npm run check
 - This pasted replay showed AIAgent narrowing onto Colonel Mustard and the Pistol, then testing Ballroom and Kitchen.
 - After Kitchen was ruled out, AIAgent immediately accused Mustard, Pistol, and Conservatory, but the accusation was incorrect; the correct room was Billiard Room.
 - The agent had not eliminated Billiard Room, so the accusation was a premature room guess even though the suspect and weapon were plausible.
-- Follow-up fix: accusation validation and the aggressive fallback now require the proposed room to be the only remaining room for the proposed suspect/weapon pair. Confidence and turn deadlines cannot override that room-certainty check.
+- Follow-up fix: accusation validation now requires the local solver to identify the unique complete solution triple. Confidence and turn deadlines cannot override that certainty check; the agent continues investigating while any alternative triple remains.
 
