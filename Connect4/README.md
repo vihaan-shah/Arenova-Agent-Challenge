@@ -48,45 +48,45 @@ npm run check
 
 ### Replay 1
 
+- CCv2 played seat 1 as red against Random Randy.
+- The match finished normally in about 4.4 seconds.
+- CCv2 won after five of its own moves, connecting four at cells 17, 24, 31, and 38.
+- There was no invalid move or forfeit.
+
+### Replay 2
+
 - CCv2 played seat 1 as red against Average Aaron.
 - The match finished normally in about 4.1 seconds.
 - CCv2 won after five of its own moves, connecting four at cells 37, 38, 39, and 40.
 - There was no invalid move or forfeit.
 
-### Replay 2
+### Replay 3
 
 - CCv2 played seat 2 as red against Luna.
 - The match finished normally in about 224.8 seconds.
 - CCv2 won after twelve of its own moves, connecting four at cells 2, 10, 18, and 26.
 - This tested the agent while playing second in the event order and still controlling the red pieces.
 
-### Replay 3
+### Replay 4
 
 - CCv2 played seat 1 as yellow against Luna.
 - The match finished normally in about 90.2 seconds.
 - CCv2 won after eight of its own moves, connecting four at cells 16, 24, 32, and 40.
 - This tested the yellow-player identity and board reconstruction.
 
-### Replay 4
+### Replay 5
 
 - CCv2 played seat 1 as yellow against Luna.
 - The match finished normally in about 104.3 seconds.
 - CCv2 won after nine of its own moves, connecting four at cells 11, 17, 23, and 29.
 - The agent continued to return legal columns throughout the longer game.
 
-### Replay 5
+### Replay 6
 
 - CCv2 played seat 1 as red against Luna.
 - The match finished normally in about 126.7 seconds.
 - CCv2 won after nine of its own moves, connecting four at cells 18, 24, 30, and 36.
 - This tested the agent's defensive and diagonal-threat handling in a long match.
-
-### Replay 6
-
-- CCv2 played seat 1 as red against Random Randy.
-- The match finished normally in about 4.4 seconds.
-- CCv2 won after five of its own moves, connecting four at cells 17, 24, 31, and 38.
-- There was no invalid move or forfeit.
 
 ### Overall result
 
