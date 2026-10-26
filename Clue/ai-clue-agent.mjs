@@ -5,13 +5,19 @@
 import { handle as safeHandle, snapshot as analyzeHistory } from "./clue-agent.mjs";
 
 const MAX_AI_CALLS = 4; // Keeps worst-case relay cost within the documented seat budget.
-const DEFAULT_ACCUSATION_THRESHOLD = 0.8;
+const DEFAULT_ACCUSATION_THRESHOLD = 0.65;
+const DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT = 2;
 let aiCalls = 0;
 let focusPair = null;
 
 function accusationThreshold() {
   const configured = Number(process.env.CRUCIBLE_AI_ACCUSATION_THRESHOLD ?? DEFAULT_ACCUSATION_THRESHOLD);
   return Number.isFinite(configured) ? Math.min(1, Math.max(0, configured)) : DEFAULT_ACCUSATION_THRESHOLD;
+}
+
+function aggressiveCandidateLimit() {
+  const configured = Number(process.env.CRUCIBLE_AI_AGGRESSIVE_CANDIDATE_LIMIT ?? DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT);
+  return Number.isFinite(configured) ? Math.max(0, Math.floor(configured)) : DEFAULT_AGGRESSIVE_CANDIDATE_LIMIT;
 }
 
 function allEvents(history) {
@@ -272,6 +278,23 @@ function validateMovementPlan(start, action) {
   return null;
 }
 
+function aggressiveAccusation(start, history, fallback) {
+  if (fallback?.type !== "turn-ended") return fallback;
+  const state = analyzeHistory(history);
+  const limit = aggressiveCandidateLimit();
+  if (!state.solutions.length || state.solutions.length > limit) return fallback;
+
+  // Prefer the active focus pair when it still has a candidate; otherwise use
+  // the solver's deterministic ordering. This is intentionally a bounded
+  // gamble: it trades some elimination risk for a chance to win before a
+  // faster Baseline player reaches the solution.
+  const focused = usablePair(start, history, focusPair)
+    ? state.solutions.find(solution =>
+      solution.suspect === focusPair.suspect && solution.weapon === focusPair.weapon)
+    : null;
+  return { type: "accusation-made", ...(focused ?? state.solutions[0]) };
+}
+
 async function askRelay(start, history, request, fallback, mode = "decision", rejectedAction = null) {
   const baseUrl = process.env.OPENAI_BASE_URL;
   const apiKey = process.env.OPENAI_API_KEY;
@@ -288,7 +311,7 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
     `For accuse-or-end, return an accusation when your confidence is at least ${accusationThreshold()} and include a numeric confidence from 0 to 1; otherwise return {"type":"turn-ended"}. Never accuse a triple ruled out by the local evidence.`,
-    "Do not wait for a single remaining candidate: make the best-supported accusation when your confidence reaches the threshold.",
+    `When at most ${aggressiveCandidateLimit()} locally possible solutions remain, prefer a supported accusation over waiting; the wrapper may make a bounded fallback accusation if you return turn-ended.`,
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
@@ -376,7 +399,9 @@ async function handle(message) {
     const replacement = await askRelay(start, message.history ?? [], request, fallback, "decision", aiAction);
     return validateAiAction(start, message.history ?? [], request, replacement, fallback);
   }
-  return result;
+  return request.kind === "accuse-or-end"
+    ? aggressiveAccusation(start, message.history ?? [], result)
+    : result;
 }
 
 async function run() {

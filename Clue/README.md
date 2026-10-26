@@ -24,9 +24,9 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 
 The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
 
-The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary and the number of locally possible solutions. AI accusations use a confidence threshold (0.80 by default): the local constraint solver must still consider the triple possible, but it does not have to have only one remaining candidate.
+The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary and the number of locally possible solutions. AI accusations use a confidence threshold (0.65 by default): the local constraint solver must still consider the triple possible, but it does not have to have only one remaining candidate. If the model declines to accuse while at most two candidates remain, the wrapper makes a bounded accusation using the focus pair when available, or the solver's deterministic candidate order.
 
-The threshold can be adjusted with `CRUCIBLE_AI_ACCUSATION_THRESHOLD`, from `0` to `1`; the default is `0.80`.
+The threshold can be adjusted with `CRUCIBLE_AI_ACCUSATION_THRESHOLD`, from `0` to `1`; the default is `0.65`. The bounded fallback limit can be adjusted with `CRUCIBLE_AI_AGGRESSIVE_CANDIDATE_LIMIT`; the default is `2`. Increasing it makes the agent more aggressive but also increases the risk of elimination from an incorrect accusation.
 
 If the model proposes an accusation that the local solver rejects, the wrapper makes one recovery request asking for a different possible triple. A second invalid or under-confident response still falls back to `turn-ended`.
 
@@ -62,7 +62,8 @@ These checks were run from the project root:
 | Call-budget routing | Send `take-turn`, `show-card`, and movement requests | No AI call is spent; the local engine handles them directly. |
 | Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
-| Confidence-gated accusation | Model returns a confident accusation | The agent accepts it when confidence is at least 0.80 and the local constraint solver still considers the triple possible. |
+| Confidence-gated accusation | Model returns a confident accusation | The agent accepts it when confidence is at least 0.65 and the local constraint solver still considers the triple possible. |
+| Aggressive accusation fallback | Model returns `turn-ended` with two or fewer candidates | The wrapper makes a bounded accusation using the focus pair or deterministic candidate order. |
 | Accusation recovery | The model proposes an impossible or under-confident accusation | The agent sends the rejection context back once and asks for a different possible triple before ending the turn. |
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |
@@ -224,6 +225,12 @@ npm run check
 - AIAgent made two legal suggestions, including Colonel Mustard with Candlestick in the Conservatory and Professor Plum with Pistol in the Conservatory, but never made an accusation.
 - All four recorded accusation-decision relay responses were `turn-ended`, so the model—not the local validator—was choosing to wait.
 - Follow-up fix: the default AI accusation threshold is now 0.80 instead of 0.90, the prompt explicitly encourages a best-supported guess without requiring a unique candidate, and the model receives the local candidate count.
+
+### Replay 16: Aggressive finish regression
+
+- In the next six-player replay, all three AIAgent seats used the updated ZIP and matched its source hash exactly.
+- One AIAgent narrowed the case to two candidates but still returned `turn-ended`; Baseline Bo solved the case before another AIAgent turn.
+- Follow-up fix: lower the default confidence threshold to 0.65 and make a bounded fallback accusation when at most two candidates remain. This intentionally accepts a small elimination risk to avoid losing races where the agent is nearly certain but the model waits.
 
 ### Replay 15: Baseline focus-pair and information-cluster regression
 
