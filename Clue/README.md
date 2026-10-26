@@ -258,3 +258,9 @@ npm run check
 - The AI model proposed Green, Wrench, and Dining Room with high confidence, but the local solver rejected that room as impossible and substituted the correct Lounge accusation. This validation prevented a false elimination and produced the win.
 - This replay demonstrates that the AI layer can be strategically imperfect while the deterministic deduction and legality layer still protects the final result.
 
+### Replay 19
+
+- This movement regression showed AIAgent as Mrs. White approaching a room with five movement spaces available.
+- Instead of entering the reachable room, the path ended one corridor square backward, costing the agent a chance to make a suggestion. The attached JSON was the earlier Replay 18 file, so this entry is based on the pasted match log and screenshot.
+- Follow-up fix: movement now performs a breadth-first search for a reachable room entrance before accepting an ordinary corridor endpoint. It still respects occupied squares, blocked doors, secret passages, target-room preferences, and the dice limit.
+

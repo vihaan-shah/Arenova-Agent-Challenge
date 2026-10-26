@@ -310,6 +310,40 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
       board.rows[point.row][point.column] === "-";
   }
 
+  // Prefer entering a reachable room over ending on an arbitrary corridor
+  // square. A breadth-first search makes this preference explicit and avoids
+  // depth-first tie-breaks that can send a pawn one square backward even when
+  // a room is reachable within the roll.
+  function searchRoom(at, path, visited, forbiddenRoom = null, targetRoom = null) {
+    const queue = [{ at, path, visited }];
+    while (queue.length) {
+      const current = queue.shift();
+      const door = board.doors.find(({ corridor }) => samePoint(corridor, current.at));
+      if (door && current.path.length > 0 && door.room !== forbiddenRoom &&
+          (!targetRoom || door.room === targetRoom)) {
+        return { type: "pawn-moved", path: current.path, enterRoom: door.room };
+      }
+      if (current.path.length === distance) continue;
+
+      const neighbors = [
+        { row: current.at.row - 1, column: current.at.column },
+        { row: current.at.row, column: current.at.column - 1 },
+        { row: current.at.row, column: current.at.column + 1 },
+        { row: current.at.row + 1, column: current.at.column },
+      ];
+      for (const next of neighbors) {
+        const nextKey = key(next);
+        if (!isOpen(next) || startingSquares.has(nextKey) || occupied.has(nextKey) || current.visited.has(nextKey)) continue;
+        queue.push({
+          at: next,
+          path: [...current.path, next],
+          visited: new Set([...current.visited, nextKey]),
+        });
+      }
+    }
+    return null;
+  }
+
   function search(at, path, visited, forbiddenRoom = null, targetRoom = null) {
     const door = board.doors.find(({ corridor }) => samePoint(corridor, at));
     if (door && path.length > 0 && door.room !== forbiddenRoom && (!targetRoom || door.room === targetRoom)) {
@@ -333,7 +367,8 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   }
 
   if (origin.kind === "corridor") {
-    return search(origin, [], new Set([key(origin)]), null, preferredRoom) ??
+    return searchRoom(origin, [], new Set([key(origin)]), null, preferredRoom) ??
+      searchRoom(origin, [], new Set([key(origin)]), null) ??
       search(origin, [], new Set([key(origin)])) ?? { type: "turn-ended" };
   }
 
@@ -342,7 +377,8 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   for (const door of board.doors.filter(({ room }) => room === origin.room)) {
     const doorKey = key(door.corridor);
     if (startingSquares.has(doorKey) || occupied.has(doorKey) || !isOpen(door.corridor)) continue;
-    const result = search(door.corridor, [door.corridor], new Set([doorKey]), origin.room, preferredRoom) ??
+    const result = searchRoom(door.corridor, [door.corridor], new Set([doorKey]), origin.room, preferredRoom) ??
+      searchRoom(door.corridor, [door.corridor], new Set([doorKey]), origin.room) ??
       search(door.corridor, [door.corridor], new Set([doorKey]), origin.room);
     if (result) return result;
   }
