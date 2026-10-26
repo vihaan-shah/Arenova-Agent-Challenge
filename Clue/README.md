@@ -157,3 +157,13 @@ npm run check
 - Baseline Bo kept testing Professor Plum with Pistol across rooms and correctly continued until the Lounge was supported.
 - Follow-up fix: an unrefuted suggestion by another player no longer creates a certain solution. Accusations require a unique solution from the local constraint solver, or a qualifying unrefuted suggestion made by the agent itself.
 
+### Replay 10
+
+- This three-player match was won by AIAgent.
+- The replay metadata confirms that AIAgent used the submitted Clue package: its source hash matched the local `Clue/clue-agent.zip` exactly.
+- The correct solution was Mrs. White, Candlestick, and Dining Room.
+- AIAgent kept Candlestick as its stable weapon while testing different suspects and rooms, including Mrs. Peacock in the Conservatory and Lounge, Professor Plum in the Hall, and Miss Scarlet in the Ballroom.
+- After the visible constraints narrowed the remaining solution, AIAgent correctly accused Mrs. White with the Candlestick in the Dining Room.
+- The replay recorded four relay calls using `openai/gpt-6-luna`; all game responses remained protocol-valid.
+- This is the first recorded replay in which the updated AI agent solved the case before the Baseline Bo agents.
+
