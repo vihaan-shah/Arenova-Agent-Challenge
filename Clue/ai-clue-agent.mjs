@@ -159,6 +159,12 @@ function stagingRoom(start, current, target) {
   return rooms.sort((a, b) => distance(a) - distance(b) || a.localeCompare(b))[0] ?? null;
 }
 
+function localRoomGoal(start, history) {
+  const crowded = busiestRoom(start, history);
+  const current = currentRoom(start, history);
+  return stagingRoom(start, current, crowded) ?? crowded ?? strategicRoom(start, history);
+}
+
 function enforceFocusPair(start, history, fallback) {
   if (fallback?.type !== "suggestion-made") return fallback;
   if (!usablePair(start, history, focusPair)) focusPair = null;
@@ -260,6 +266,7 @@ async function askRelay(start, history, request, fallback, mode = "decision") {
         model,
         temperature: 0.1,
         max_tokens: 700,
+        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: "Output only valid JSON." },
           { role: "user", content: prompt },
@@ -293,16 +300,16 @@ async function handle(message) {
 
   let preferredRoom = null;
   if (request.kind === "take-turn") {
-    const plan = await askRelay(start, message.history ?? [], request, null, "movement-plan");
-    const crowded = busiestRoom(start, message.history ?? []);
-    const current = currentRoom(start, message.history ?? []);
-    const target = stagingRoom(start, current, crowded) ?? crowded;
     // Prefer rooms where other suspects have gathered: suggestions there can
     // move another suspect into the room and reveal more shared information.
     // If already in that room, use a nearby staging room because the rules may
     // require a pawn to leave before it can make another suggestion there.
     // The local engine still validates reachability and falls back safely.
-    preferredRoom = target ?? strategicRoom(start, message.history ?? []) ?? validateMovementPlan(start, plan);
+    preferredRoom = localRoomGoal(start, message.history ?? []);
+    if (!preferredRoom) {
+      const plan = await askRelay(start, message.history ?? [], request, null, "movement-plan");
+      preferredRoom = validateMovementPlan(start, plan);
+    }
   }
 
   let fallback = await safeHandle(message, { preferredRoom });

@@ -64,6 +64,8 @@ These checks were run from the project root:
 | Evidence-directed movement | A focus pair has candidate rooms remaining | Movement targets an untested candidate room before asking the relay for a new general movement goal. |
 | Crowd-aware movement | Other suspects are already gathered in a room | Movement prefers the busiest visible room so the agent can participate in the same information-rich suggestions. If it must leave that room first, it uses the nearest staging room and targets the hub on the next turn. |
 | Empty AI response | The relay returns `content: null` or unusable output | The wrapper ignores it and uses the local legal movement or deduction fallback. |
+| Structured relay output | The model returns prose or an empty content field | Requests include JSON-object response formatting; invalid responses still use the local fallback. |
+| AI-call allocation | Local crowd/focus logic already identifies a useful room | The relay is skipped for that movement decision, preserving calls for suggestions and accusations. |
 
 ## Algorithmic-to-AI test case
 
@@ -197,5 +199,5 @@ npm run check
 - AIAgent was playing Professor Plum. It made legal movement and eventually suggested Mr. Green with the Candlestick in the Ballroom, but the match ended on the next Baseline Bo turn.
 - Two AIAgent movement-planning relay calls returned `content: null`, so the local legal fallback handled those decisions safely. A later accusation-decision call returned `turn-ended`.
 - Baseline Bo narrowed the case by testing Colonel Mustard with the Knife in Conservatory and then Study, keeping the suspect/weapon pair stable while changing rooms before making the correct accusation.
-- Improvement target: require structured JSON from movement-planning calls and prioritize the fastest reachable information room. The local fallback prevented a crash, but this short match gave AIAgent only one useful suggestion.
+- Follow-up fix: relay requests now require JSON-object output, local crowd/focus movement goals are used before calling the relay, and the saved AI-call budget is reserved for suggestions and accusations. The local fallback still protects against malformed output.
 
