@@ -250,3 +250,11 @@ npm run check
 - The pasted match view showed the same broader problem: AIAgent made legal suggestions and card responses but almost never reached an accusation before Baseline Bo 2 won.
 - Follow-up fix: expose deduction completeness, increase the six-player deduction budget to one second, and add a four-turn forced-guess deadline. Once the solver has completed, the agent now makes a bounded best-candidate accusation rather than waiting indefinitely for the model to become confident; incomplete or empty searches still cannot trigger an accusation.
 
+### Replay 18
+
+- This six-player replay had three AIAgent seats and three Baseline Bo seats. The replay source hash matched the current `Clue/clue-agent.zip` exactly.
+- AIAgent 3 won with the solution Mr. Green, Wrench, and Lounge.
+- The agent gathered evidence by testing Green with multiple weapons and rooms, eventually narrowing the solution to one locally supported candidate.
+- The AI model proposed Green, Wrench, and Dining Room with high confidence, but the local solver rejected that room as impossible and substituted the correct Lounge accusation. This validation prevented a false elimination and produced the win.
+- This replay demonstrates that the AI layer can be strategically imperfect while the deterministic deduction and legality layer still protects the final result.
+
