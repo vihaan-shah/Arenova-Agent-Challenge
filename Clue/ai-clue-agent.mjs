@@ -111,6 +111,21 @@ function usablePair(start, history, pair) {
   return !known.has(`suspect:${pair.suspect}`) && !known.has(`weapon:${pair.weapon}`);
 }
 
+function strategicRoom(start, history) {
+  if (!usablePair(start, history, focusPair)) return null;
+  const state = analyzeHistory(history);
+  const tested = new Set(allEvents(history)
+    .filter(event => event.type === "suggestion-made" &&
+      event.suggestion.suspect === focusPair.suspect &&
+      event.suggestion.weapon === focusPair.weapon)
+    .map(event => event.suggestion.room));
+  const candidates = state.solutions
+    .filter(solution => solution.suspect === focusPair.suspect && solution.weapon === focusPair.weapon)
+    .map(solution => solution.room);
+  const rooms = [...new Set(candidates)];
+  return rooms.sort((a, b) => Number(tested.has(a)) - Number(tested.has(b)) || a.localeCompare(b))[0] ?? null;
+}
+
 function enforceFocusPair(start, history, fallback) {
   if (fallback?.type !== "suggestion-made") return fallback;
   if (!usablePair(start, history, focusPair)) focusPair = null;
@@ -246,7 +261,9 @@ async function handle(message) {
   let preferredRoom = null;
   if (request.kind === "take-turn") {
     const plan = await askRelay(start, message.history ?? [], request, null, "movement-plan");
-    preferredRoom = validateMovementPlan(start, plan);
+    // Once a pair is established, room testing is more valuable than a new
+    // unstructured movement goal. The local engine still validates reachability.
+    preferredRoom = strategicRoom(start, message.history ?? []) ?? validateMovementPlan(start, plan);
   }
 
   let fallback = await safeHandle(message, { preferredRoom });

@@ -220,6 +220,22 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
   const unavailable = card => shownToMe.has(card);
   const suspects = (start.suspects ?? []).filter(value => !unavailable(cardId("suspect", value)));
   const weapons = (start.weapons ?? []).filter(value => !unavailable(cardId("weapon", value)));
+
+  // Keep the last usable pair while changing rooms. This is deliberately
+  // derived from history so it also works after a restart or relay fallback.
+  const prior = [...all].reverse().find(event => {
+    if (event.type !== "suggestion-made" || event.suggester !== start.you.seat) return false;
+    return suspects.includes(event.suggestion.suspect) && weapons.includes(event.suggestion.weapon);
+  });
+  if (prior) {
+    return {
+      type: "suggestion-made",
+      suspect: prior.suggestion.suspect,
+      weapon: prior.suggestion.weapon,
+      room,
+    };
+  }
+
   const tried = new Set(
     all
       .filter(event => event.type === "suggestion-made" && event.suggestion.room === room)

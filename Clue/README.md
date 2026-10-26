@@ -26,7 +26,7 @@ The AI relay is called only a limited number of times per match and is given onl
 
 The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary, and the local constraint solver must independently identify one solution before any AI accusation is accepted.
 
-After selecting a useful suspect/weapon pair, the agent keeps that pair as a focus and tests it across different rooms. It changes the pair only when visible evidence rules out one of its cards. This mirrors the strongest pattern observed in the Baseline Bo replays while preserving the AI layer.
+After selecting a useful suspect/weapon pair, the agent keeps that pair as a focus and tests it across different rooms. It changes the pair only when visible evidence rules out one of its cards. Once a card is shown, it is permanently excluded from future solution candidates, and the agent selects a replacement pair. If a suggestion is unrefuted and the local solver identifies the unique solution, the next decision immediately makes the accusation. This mirrors the strongest pattern observed in the Baseline Bo replays while preserving the AI layer.
 
 The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
 
@@ -60,6 +60,8 @@ These checks were run from the project root:
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
 | Evidence-gated accusation | Model returns a confident accusation | The agent accepts it only when the local constraint solver independently has one solution left. |
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
+| Unrefuted-suggestion finish | A suggestion receives no refutation | The local solver converts the next decision into the supported accusation immediately. |
+| Evidence-directed movement | A focus pair has candidate rooms remaining | Movement targets an untested candidate room before asking the relay for a new general movement goal. |
 
 ## Algorithmic-to-AI test case
 
