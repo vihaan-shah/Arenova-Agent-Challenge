@@ -24,9 +24,9 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 
 The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
 
-The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary and the number of locally possible solutions. AI accusations use a confidence threshold (0.65 by default): the local constraint solver must still consider the triple possible, but it does not have to have only one remaining candidate. If the model declines to accuse while at most two candidates remain, the wrapper makes a bounded accusation using the focus pair when available, or the solver's deterministic candidate order.
+The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary and the number of locally possible solutions. AI accusations use a confidence threshold (0.65 by default): the local constraint solver must still consider the triple possible, but it does not have to have only one remaining candidate. If the model declines to accuse while at most two candidates remain, the wrapper makes a bounded accusation using the focus pair when available, or the solver's deterministic candidate order. After four completed turns, it makes the same bounded best-candidate attempt whenever deduction has completed, even if more candidates remain.
 
-The threshold can be adjusted with `CRUCIBLE_AI_ACCUSATION_THRESHOLD`, from `0` to `1`; the default is `0.65`. The bounded fallback limit can be adjusted with `CRUCIBLE_AI_AGGRESSIVE_CANDIDATE_LIMIT`; the default is `2`. Increasing it makes the agent more aggressive but also increases the risk of elimination from an incorrect accusation.
+The threshold can be adjusted with `CRUCIBLE_AI_ACCUSATION_THRESHOLD`, from `0` to `1`; the default is `0.65`. The bounded fallback limit can be adjusted with `CRUCIBLE_AI_AGGRESSIVE_CANDIDATE_LIMIT`; the default is `2`. The turn deadline can be adjusted with `CRUCIBLE_AI_FORCE_GUESS_AFTER_TURNS`; the default is `4`. Increasing either aggressive setting makes the agent more likely to guess, but also increases the risk of elimination from an incorrect accusation. Incomplete deduction results caused by the solver time limit are never treated as evidence for an accusation.
 
 If the model proposes an accusation that the local solver rejects, the wrapper makes one recovery request asking for a different possible triple. A second invalid or under-confident response still falls back to `turn-ended`.
 
@@ -64,6 +64,7 @@ These checks were run from the project root:
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
 | Confidence-gated accusation | Model returns a confident accusation | The agent accepts it when confidence is at least 0.65 and the local constraint solver still considers the triple possible. |
 | Aggressive accusation fallback | Model returns `turn-ended` with two or fewer candidates | The wrapper makes a bounded accusation using the focus pair or deterministic candidate order. |
+| Forced guess deadline | Model keeps returning `turn-ended` after four completed turns | The wrapper makes a bounded accusation from a complete candidate set instead of waiting indefinitely. |
 | Accusation recovery | The model proposes an impossible or under-confident accusation | The agent sends the rejection context back once and asks for a different possible triple before ending the turn. |
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |
@@ -240,4 +241,12 @@ npm run check
 - In the next six-player replay, all three AIAgent seats used the updated ZIP and matched its source hash exactly.
 - One AIAgent narrowed the case to two candidates but still returned `turn-ended`; Baseline Bo solved the case before another AIAgent turn.
 - Follow-up fix: lower the default confidence threshold to 0.65 and make a bounded fallback accusation when at most two candidates remain. This intentionally accepts a small elimination risk to avoid losing races where the agent is nearly certain but the model waits.
+
+### Replay 17
+
+- The attached six-player replay had three AIAgent seats and three Baseline Bo seats. All AIAgent seats used the current ZIP exactly; the replay source hash matched `Clue/clue-agent.zip`.
+- The solution was Mrs. White, Wrench, and Conservatory. Baseline Bo 2 solved the case before any AIAgent made an accusation.
+- The AIAgent finish calls repeatedly returned `turn-ended` while the local solver reported roughly 107–208 candidates. One snapshot reported zero because the bounded deduction search was incomplete, not because the case had no possible solutions.
+- The pasted match view showed the same broader problem: AIAgent made legal suggestions and card responses but almost never reached an accusation before Baseline Bo 2 won.
+- Follow-up fix: expose deduction completeness, increase the six-player deduction budget to one second, and add a four-turn forced-guess deadline. Once the solver has completed, the agent now makes a bounded best-candidate accusation rather than waiting indefinitely for the model to become confident; incomplete or empty searches still cannot trigger an accusation.
 

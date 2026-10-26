@@ -3,7 +3,9 @@
 
 let seat = null;
 let requestsHandled = 0;
-const DEDUCTION_BUDGET_MS = 250;
+// Six-player histories need more search time before the accusation deadline;
+// incomplete results are still never treated as proof.
+const DEDUCTION_BUDGET_MS = 1000;
 
 function events(history) {
   return history.map(({ event }) => event);
@@ -217,6 +219,7 @@ function snapshot(history) {
     maySuggestWithoutMoving,
     knownSolution: inference.complete && inference.candidates.length === 1 ? inference.candidates[0] : null,
     solutions: inference.candidates,
+    solutionsComplete: inference.complete,
     shownToMe,
   };
 }
