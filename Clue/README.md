@@ -24,7 +24,7 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 
 The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
 
-The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary, and accusations require a confidence score; the threshold is relaxed slightly only in the final turns.
+The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary, and the local constraint solver must independently identify one solution before any AI accusation is accepted.
 
 The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
 
@@ -56,7 +56,7 @@ These checks were run from the project root:
 | Call-budget routing | Send `take-turn`, `show-card`, and movement requests | No AI call is spent; the local engine handles them directly. |
 | Compact AI context | Use a full replay with board geometry | Omits unnecessary board cells and sends deduction-relevant history only. |
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
-| Confidence-gated accusation | Model returns an accusation with confidence | The agent accepts it only above the required confidence threshold. |
+| Evidence-gated accusation | Model returns a confident accusation | The agent accepts it only when the local constraint solver independently has one solution left. |
 
 ## Algorithmic-to-AI test case
 
@@ -113,4 +113,12 @@ npm run check
 - AIAgent received one turn, made a legal corridor move, and ended its turn normally.
 - Baseline Bo 3 reached the Ballroom on the next turn, made an unrefuted suggestion, and correctly accused the solution.
 - The match ended before AIAgent had a chance to make a suggestion or accusation; no AIAgent crash or invalid response occurred.
+
+### Replay 6
+
+- This six-player match was shown from Baseline Bo's perspective.
+- The hidden solution was Mr. Green, Rope, and Ballroom.
+- Baseline Bo repeatedly tested the same likely suspect/weapon pair in different rooms, including Conservatory, Study, Billiard Room, Lounge, and Library, before correctly accusing in Ballroom.
+- AIAgent made an incorrect accusation of Mr. Green, Rope, and Conservatory. The suspect and weapon were plausible, but the room was not proven.
+- Follow-up fix: AI confidence can no longer override the local deduction solver. An AI accusation is accepted only when the local solver independently identifies the exact unique solution.
 

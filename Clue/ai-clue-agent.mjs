@@ -2,7 +2,7 @@
 // The local Clue engine supplies a legal fallback; the Arenova AI relay
 // supplies strategic reasoning for suggestions and accusations.
 
-import { handle as safeHandle } from "./clue-agent.mjs";
+import { handle as safeHandle, snapshot as analyzeHistory } from "./clue-agent.mjs";
 
 const MAX_AI_CALLS = 4; // Keeps worst-case relay cost within the documented seat budget.
 let aiCalls = 0;
@@ -101,7 +101,9 @@ function validateAiAction(start, history, request, action, fallback) {
 
   if (request.kind === "make-suggestion") {
     const room = currentRoom(start, history);
-    if (action.type === "suggestion-made" && validTriple(start, action) && action.room === room) return action;
+    if (action.type === "suggestion-made" && validTriple(start, action) && action.room === room) {
+      return { type: "suggestion-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
+    }
     return fallback;
   }
 
@@ -119,8 +121,15 @@ function validateAiAction(start, history, request, action, fallback) {
   if (request.kind === "accuse-or-end" || request.kind === "take-turn") {
     // Movement remains on the deterministic fallback path. The model may
     // override it only with a structurally valid accusation.
-    if (action.type === "accusation-made" && validTriple(start, action) &&
-      Number(action.confidence) >= accusationThreshold(start, history)) return action;
+    if (action.type === "accusation-made" && validTriple(start, action)) {
+      // Never let model confidence override game evidence. The accusation is
+      // accepted only when the local constraint solver has one solution left.
+      const certain = analyzeHistory(history).knownSolution;
+      if (certain && action.suspect === certain.suspect &&
+        action.weapon === certain.weapon && action.room === certain.room) {
+        return { type: "accusation-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
+      }
+    }
     return fallback;
   }
 
@@ -132,11 +141,6 @@ function validateMovementPlan(start, action) {
     return action.targetRoom;
   }
   return null;
-}
-
-function accusationThreshold(start, history) {
-  const currentTurn = Math.max(start.turn ?? 1, ...allEvents(history).map(event => event.turn ?? 0));
-  return start.turnLimit && currentTurn >= start.turnLimit - 3 ? 0.75 : 0.93;
 }
 
 async function askRelay(start, history, request, fallback, mode = "decision") {

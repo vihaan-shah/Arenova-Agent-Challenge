@@ -372,7 +372,7 @@ async function handle(message, options = {}) {
   return decide(message.history ?? [], message.decision, options);
 }
 
-export { handle };
+export { handle, snapshot };
 
 async function run() {
   const { createInterface } = await import("node:readline");
