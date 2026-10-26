@@ -26,6 +26,14 @@ function forceGuessAfterTurns() {
   return Number.isFinite(configured) ? Math.max(0, Math.floor(configured)) : DEFAULT_FORCE_GUESS_AFTER_TURNS;
 }
 
+function roomCertainForPair(state, suspect, weapon, room) {
+  const pairCandidates = state.solutions.filter(solution =>
+    solution.suspect === suspect && solution.weapon === weapon);
+  return pairCandidates.length > 0 &&
+    new Set(pairCandidates.map(solution => solution.room)).size === 1 &&
+    pairCandidates[0].room === room;
+}
+
 function allEvents(history) {
   return history.map(item => item.event);
 }
@@ -264,6 +272,12 @@ function validateAiAction(start, history, request, action, fallback) {
         action.weapon === certain.weapon && action.room === certain.room) {
         return { type: "accusation-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
       }
+      // Knowing the suspect and weapon is not enough. The room must also be
+      // the only room still possible for that pair; otherwise this is the
+      // exact premature-accusation failure the aggressive mode is meant to avoid.
+      if (!state.solutionsComplete || !roomCertainForPair(state, action.suspect, action.weapon, action.room)) {
+        return fallback;
+      }
       const confidence = Number(action.confidence);
       const remainsPossible = state.solutions.some(solution =>
         solution.suspect === action.suspect && solution.weapon === action.weapon && solution.room === action.room);
@@ -294,15 +308,17 @@ function aggressiveAccusation(start, history, fallback) {
   const deadlineReached = ownTurns >= forceGuessAfterTurns();
   if (!state.solutions.length || (state.solutions.length > limit && !deadlineReached)) return fallback;
 
-  // Prefer the active focus pair when it still has a candidate; otherwise use
-  // the solver's deterministic ordering. This is intentionally a bounded
-  // gamble: it trades some elimination risk for a chance to win before a
-  // faster Baseline player reaches the solution.
-  const focused = usablePair(start, history, focusPair)
-    ? state.solutions.find(solution =>
-      solution.suspect === focusPair.suspect && solution.weapon === focusPair.weapon)
-    : null;
-  return { type: "accusation-made", ...(focused ?? state.solutions[0]) };
+  // Never choose an arbitrary room. A bounded accusation is allowed only for
+  // the active focus pair after every remaining candidate for that pair points
+  // to the same room.
+  const pair = usablePair(start, history, focusPair)
+    ? focusPair
+    : historyFocusPair(start, history);
+  if (!pair) return fallback;
+  const focused = state.solutions.filter(solution =>
+    solution.suspect === pair.suspect && solution.weapon === pair.weapon);
+  if (focused.length !== 1) return fallback;
+  return { type: "accusation-made", ...focused[0] };
 }
 
 async function askRelay(start, history, request, fallback, mode = "decision", rejectedAction = null) {
