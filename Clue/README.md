@@ -133,3 +133,13 @@ npm run check
 - AIAgent made legal moves and suggestions but changed its suspect/weapon focus more often and did not solve the case before Baseline Bo.
 - Follow-up fix: the AI agent now keeps a focus pair across room suggestions and changes it only when visible evidence rules out a component.
 
+### Replay 8
+
+- This three-player match was won by Baseline Bo.
+- The hidden solution was Mrs. Peacock, Rope, and Hall.
+- AIAgent made legal movement, suggestions, card responses, and turn endings without crashing or making an invalid accusation.
+- AIAgent tested several combinations, including Mrs. Peacock with the Candlestick and Knife, but did not reach a proven solution before Baseline Bo accused correctly.
+- The replay metadata confirms that AIAgent used the submitted Clue package: its source hash matched the local `Clue/clue-agent.zip` exactly.
+- The AI relay recorded four calls using `openai/gpt-6-luna`; the local legality and deduction engine remained responsible for validating every response.
+- Follow-up improvement: continue prioritizing one promising suspect/weapon focus pair while deliberately testing rooms, and accuse only after the local solver proves the complete solution.
+
