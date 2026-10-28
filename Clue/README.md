@@ -312,3 +312,11 @@ npm run check
 - This replay confirms that the Baseline-style movement and pair strategy were active. Baseline still won because it reached the room that supplied the final certainty one turn earlier.
 - Follow-up movement fix: when starting in a room, the pathfinder now checks every legal exit for the preferred target room before accepting a corridor fallback. The original pathfinder could stop from the first exit and fail to inspect a later exit, even when that later exit reached Conservatory within the roll.
 
+### Replay 26
+
+- The correct solution was Mrs. Peacock, Rope, and Study; Baseline Bo won before AIAgent could complete the investigation.
+- AIAgent converged toward Mrs. Peacock, but its weapon sequence drifted from Candlestick to Knife to Lead Pipe and never tested Rope as its stable weapon.
+- Baseline repeatedly tested the same Peacock/Rope pair across Lounge, Conservatory, Ballroom, Kitchen, and Study, then accused the supported Study solution.
+- AIAgent’s opponent-pattern feature was not strong enough in this replay: repeated opponent hypotheses were only tie-breakers behind local candidate support, so AIAgent kept selecting other weapon pairs.
+- The agent was therefore close on the suspect but far on the weapon and room, and Baseline won by maintaining one pair and cycling rooms.
+
