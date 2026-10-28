@@ -302,3 +302,12 @@ npm run check
 - The fallback prioritizes an active focus room or the visible crowd pattern, not a room another opponent had been testing. Because AIAgent had just suggested in Kitchen, it also had to leave that room before suggesting again.
 - The match log does not include the roll or selected target room, so it cannot establish whether Ballroom was reachable on that roll. The event shows that no Ballroom entry occurred before Baseline Bo 2 solved the case.
 
+### Replay 25
+
+- This three-player replay used the current ZIP exactly; the AIAgent source hash matched `Clue/clue-agent.zip`.
+- AIAgent made room suggestions on nearly every available turn: Green/Candlestick, Scarlet/Lead Pipe, Plum/Knife, and finally Plum/Lead Pipe.
+- The agent maintained a pair until a revealed card ruled it out, then selected a replacement pair. Its local candidate count narrowed from 120 to 90, 75, and 50, so it correctly did not accuse prematurely.
+- AIAgent’s final Plum/Lead Pipe suggestion in Ballroom was unrefuted, but Ballroom was one of AIAgent’s own cards. Therefore the suggestion did not prove Ballroom as the solution room.
+- Baseline Bo 2 later tested Plum/Lead Pipe in Conservatory. That suggestion was unrefuted and Conservatory was not in its hand, so Baseline Bo 2 had a fully supported solution and correctly accused.
+- This replay confirms that the Baseline-style movement and pair strategy were active. Baseline still won because it reached the room that supplied the final certainty one turn earlier.
+
