@@ -260,18 +260,23 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
     opponentPairSupport.set(key, current);
   }
 
-  // Prefer pairs that occur most often in the remaining solution candidates:
-  // they are more likely to reveal useful information. Avoid repeating a pair
-  // in the same room until every legal pair has been tried.
+  // Prefer a Baseline-style pair: maximize total remaining solution support
+  // and the number of rooms that pair can still occupy. The room is the
+  // variable we want to isolate, so a pair supported across several rooms is
+  // more useful than a pair supported only by the current room.
   const roomSolutions = solutions.filter(solution => solution.room === room);
-  const pool = roomSolutions.length ? roomSolutions : solutions;
   const pairs = [];
   for (const suspect of suspects) {
     for (const weapon of weapons) {
       const key = `${suspect}|${weapon}`;
-      const support = pool.filter(solution => solution.suspect === suspect && solution.weapon === weapon).length;
+      const pairSolutions = solutions.filter(solution =>
+        solution.suspect === suspect && solution.weapon === weapon);
+      const support = pairSolutions.length;
+      const roomCoverage = new Set(pairSolutions.map(solution => solution.room)).size;
+      const currentRoomSupport = roomSolutions.filter(solution =>
+        solution.suspect === suspect && solution.weapon === weapon).length;
       const opponent = opponentPairSupport.get(key);
-      pairs.push({ suspect, weapon, support, repeated: tried.has(key) });
+      pairs.push({ suspect, weapon, support, roomCoverage, currentRoomSupport, repeated: tried.has(key) });
       pairs[pairs.length - 1].opponentSupport = opponent
         ? opponent.count + opponent.rooms.size / 10
         : 0;
@@ -279,7 +284,8 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
   }
   const fresh = pairs.filter(pair => !pair.repeated);
   const choices = fresh.length ? fresh : pairs;
-  choices.sort((a, b) => b.support - a.support || b.opponentSupport - a.opponentSupport ||
+  choices.sort((a, b) => b.support - a.support || b.roomCoverage - a.roomCoverage ||
+    b.currentRoomSupport - a.currentRoomSupport || b.opponentSupport - a.opponentSupport ||
     a.suspect.localeCompare(b.suspect) || a.weapon.localeCompare(b.weapon));
   const choice = choices[0] ?? { suspect: start.suspects[0], weapon: start.weapons[0] };
   const suspect = choice.suspect;

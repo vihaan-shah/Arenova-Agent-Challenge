@@ -21,6 +21,7 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 7. Builds possible solution triples from hand sizes, known cards, passed players, and refutations.
 8. Accuses only when the local solver proves the unique solution; otherwise it keeps gathering evidence and making legal suggestions.
 9. Reviews opponents’ repeated suggestions as soft strategic evidence, while never treating another player’s guess as proof.
+10. Follows the strongest Baseline pattern: choose one suspect/weapon pair with broad remaining room support, keep it stable, and vary the room until the solution is uniquely determined.
 9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
 The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
@@ -66,6 +67,7 @@ These checks were run from the project root:
 | Certainty-gated accusation | Model returns a confident accusation | The agent accepts it only when the local solver identifies exactly one complete solution triple. |
 | Continued investigation | Multiple solution triples remain | The agent returns `turn-ended` for accusation requests and continues making legal room suggestions on later turns. |
 | Opponent-pattern analysis | Opponents repeat a suspect/weapon pair across rooms | The AI receives a structured pattern summary, and the deterministic suggestion fallback uses it as a tie-breaker without overriding hard deductions. |
+| Baseline pair-and-room strategy | Multiple candidate pairs and rooms remain | The fallback chooses the pair with the strongest total support and widest room coverage, then preserves it while testing rooms. |
 | Accusation recovery | The model proposes an impossible or under-confident accusation | The agent sends the rejection context back once and asks for a different possible triple before ending the turn. |
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |
