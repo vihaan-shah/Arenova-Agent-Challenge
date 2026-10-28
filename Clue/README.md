@@ -20,6 +20,7 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 6. Shows a matching card when it is asked to refute a suggestion.
 7. Builds possible solution triples from hand sizes, known cards, passed players, and refutations.
 8. Accuses only when the local solver proves the unique solution; otherwise it keeps gathering evidence and making legal suggestions.
+9. Reviews opponents’ repeated suggestions as soft strategic evidence, while never treating another player’s guess as proof.
 9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
 The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
@@ -64,6 +65,7 @@ These checks were run from the project root:
 | AI room planning | Ask the model for a movement goal | Local pathfinding validates the route and falls back safely if unreachable. |
 | Certainty-gated accusation | Model returns a confident accusation | The agent accepts it only when the local solver identifies exactly one complete solution triple. |
 | Continued investigation | Multiple solution triples remain | The agent returns `turn-ended` for accusation requests and continues making legal room suggestions on later turns. |
+| Opponent-pattern analysis | Opponents repeat a suspect/weapon pair across rooms | The AI receives a structured pattern summary, and the deterministic suggestion fallback uses it as a tie-breaker without overriding hard deductions. |
 | Accusation recovery | The model proposes an impossible or under-confident accusation | The agent sends the rejection context back once and asks for a different possible triple before ending the turn. |
 | Focus-pair testing | Multiple rooms are reachable over several turns | Reuses one useful suspect/weapon pair and varies the room before changing cards, even when the AI relay is unavailable or disagrees. |
 | Solver-confirmed finish | The local solver identifies one remaining solution | The next decision immediately makes the supported accusation; another player’s unrefuted suggestion alone is not enough. |

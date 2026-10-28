@@ -250,6 +250,16 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
       .map(event => `${event.suggestion.suspect}|${event.suggestion.weapon}`),
   );
 
+  const opponentPairSupport = new Map();
+  for (const event of all) {
+    if (event.type !== "suggestion-made" || event.suggester === start.you.seat) continue;
+    const key = `${event.suggestion.suspect}|${event.suggestion.weapon}`;
+    const current = opponentPairSupport.get(key) ?? { count: 0, rooms: new Set() };
+    current.count += 1;
+    current.rooms.add(event.suggestion.room);
+    opponentPairSupport.set(key, current);
+  }
+
   // Prefer pairs that occur most often in the remaining solution candidates:
   // they are more likely to reveal useful information. Avoid repeating a pair
   // in the same room until every legal pair has been tried.
@@ -260,12 +270,17 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
     for (const weapon of weapons) {
       const key = `${suspect}|${weapon}`;
       const support = pool.filter(solution => solution.suspect === suspect && solution.weapon === weapon).length;
+      const opponent = opponentPairSupport.get(key);
       pairs.push({ suspect, weapon, support, repeated: tried.has(key) });
+      pairs[pairs.length - 1].opponentSupport = opponent
+        ? opponent.count + opponent.rooms.size / 10
+        : 0;
     }
   }
   const fresh = pairs.filter(pair => !pair.repeated);
   const choices = fresh.length ? fresh : pairs;
-  choices.sort((a, b) => b.support - a.support || a.suspect.localeCompare(b.suspect) || a.weapon.localeCompare(b.weapon));
+  choices.sort((a, b) => b.support - a.support || b.opponentSupport - a.opponentSupport ||
+    a.suspect.localeCompare(b.suspect) || a.weapon.localeCompare(b.weapon));
   const choice = choices[0] ?? { suspect: start.suspects[0], weapon: start.weapons[0] };
   const suspect = choice.suspect;
   const weapon = choice.weapon;

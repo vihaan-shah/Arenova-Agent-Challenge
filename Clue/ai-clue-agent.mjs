@@ -12,6 +12,35 @@ function allEvents(history) {
   return history.map(item => item.event);
 }
 
+function opponentPatterns(start, history) {
+  const patterns = new Map();
+  for (const event of allEvents(history)) {
+    if (event.type !== "suggestion-made" || event.suggester === start.you.seat) continue;
+    const key = `${event.suggestion.suspect}|${event.suggestion.weapon}`;
+    const pattern = patterns.get(key) ?? {
+      suspect: event.suggestion.suspect,
+      weapon: event.suggestion.weapon,
+      count: 0,
+      rooms: new Set(),
+      unrefuted: 0,
+    };
+    pattern.count += 1;
+    pattern.rooms.add(event.suggestion.room);
+    if (event.refuter === null) pattern.unrefuted += 1;
+    patterns.set(key, pattern);
+  }
+  return [...patterns.values()]
+    .map(pattern => ({
+      suspect: pattern.suspect,
+      weapon: pattern.weapon,
+      count: pattern.count,
+      rooms: [...pattern.rooms],
+      unrefuted: pattern.unrefuted,
+    }))
+    .sort((a, b) => b.count - a.count || b.rooms.length - a.rooms.length)
+    .slice(0, 6);
+}
+
 function setup(history) {
   return allEvents(history).find(event => event.type === "game-started");
 }
@@ -275,10 +304,11 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
     "For accuse-or-end, return an accusation only when the local evidence proves one exact suspect/weapon/room triple; otherwise return {\"type\":\"turn-ended\"}. Confidence is not enough when any alternative triple remains.",
+    "Use opponentPatterns as soft strategic evidence: repeated opponent suspect/weapon pairs or pairs tested across rooms can identify useful hypotheses to investigate. Never treat an opponent's suggestion as proof, because that player may hold one of the named cards.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
-    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, focusPair })}`,
+    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, focusPair, opponentPatterns: opponentPatterns(start, history) })}`,
     ...(rejectedAction ? [
       `The previous accusation was rejected by the local solver because it is not a possible solution: ${JSON.stringify({ suspect: rejectedAction.suspect, weapon: rejectedAction.weapon, room: rejectedAction.room })}. Choose a different still-possible triple; do not repeat it.`,
     ] : []),
