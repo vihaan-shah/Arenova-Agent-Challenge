@@ -295,3 +295,10 @@ npm run check
 - This was intentional and legal under the classic rules. A player may include one or more cards from their own hand in a suggestion to test the other cards or mislead opponents.
 - The local solver still treats Kitchen as known-not-solution; using it in a suggestion does not make Kitchen a candidate solution. Since the agent was physically in Kitchen, it was also the only legal room it could name.
 
+### Replay 24
+
+- On AIAgent’s last turn, it left Kitchen and stopped at a corridor square instead of entering Ballroom.
+- By that point the four-call AI relay budget had already been used, so this movement was selected by the deterministic fallback rather than by the model.
+- The fallback prioritizes an active focus room or the visible crowd pattern, not a room another opponent had been testing. Because AIAgent had just suggested in Kitchen, it also had to leave that room before suggesting again.
+- The match log does not include the roll or selected target room, so it cannot establish whether Ballroom was reachable on that roll. The event shows that no Ballroom entry occurred before Baseline Bo 2 solved the case.
+
