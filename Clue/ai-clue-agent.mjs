@@ -140,8 +140,15 @@ function usablePair(start, history, pair) {
   return !known.has(`suspect:${pair.suspect}`) && !known.has(`weapon:${pair.weapon}`);
 }
 
+function pairStillPossible(start, history, pair) {
+  if (!usablePair(start, history, pair)) return false;
+  const state = analyzeHistory(history);
+  return !state.solutionsComplete || state.solutions.some(solution =>
+    solution.suspect === pair.suspect && solution.weapon === pair.weapon);
+}
+
 function strategicRoom(start, history) {
-  const pair = usablePair(start, history, focusPair)
+  const pair = pairStillPossible(start, history, focusPair)
     ? focusPair
     : historyFocusPair(start, history);
   if (!pair) return null;
@@ -225,7 +232,7 @@ function localRoomGoal(start, history) {
 
 function enforceFocusPair(start, history, fallback) {
   if (fallback?.type !== "suggestion-made") return fallback;
-  if (!usablePair(start, history, focusPair)) focusPair = null;
+  if (!pairStillPossible(start, history, focusPair)) focusPair = null;
   if (!focusPair) {
     const proposed = { suspect: fallback.suspect, weapon: fallback.weapon };
     if (usablePair(start, history, proposed)) focusPair = proposed;
@@ -241,7 +248,7 @@ function validateAiAction(start, history, request, action, fallback) {
   if (request.kind === "make-suggestion") {
     const room = currentRoom(start, history);
     if (action.type === "suggestion-made" && validTriple(start, action) && action.room === room) {
-      if (!usablePair(start, history, focusPair)) focusPair = null;
+      if (!pairStillPossible(start, history, focusPair)) focusPair = null;
       if (!focusPair) {
         const proposed = { suspect: action.suspect, weapon: action.weapon };
         if (usablePair(start, history, proposed)) focusPair = proposed;
@@ -367,10 +374,6 @@ async function handle(message) {
     // require a pawn to leave before it can make another suggestion there.
     // The local engine still validates reachability and falls back safely.
     preferredRoom = localRoomGoal(start, message.history ?? []);
-    if (!preferredRoom) {
-      const plan = await askRelay(start, message.history ?? [], request, null, "movement-plan");
-      preferredRoom = validateMovementPlan(start, plan);
-    }
   }
 
   let fallback = await safeHandle(message, { preferredRoom });

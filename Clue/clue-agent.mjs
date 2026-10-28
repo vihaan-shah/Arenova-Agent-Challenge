@@ -233,7 +233,12 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
   // derived from history so it also works after a restart or relay fallback.
   const prior = [...all].reverse().find(event => {
     if (event.type !== "suggestion-made" || event.suggester !== start.you.seat) return false;
-    return suspects.includes(event.suggestion.suspect) && weapons.includes(event.suggestion.weapon);
+    if (!suspects.includes(event.suggestion.suspect) || !weapons.includes(event.suggestion.weapon)) return false;
+    // If the solver has a nonempty candidate set, do not keep testing a pair
+    // that visible evidence has already ruled out. An empty set may be a
+    // bounded-search timeout, so preserve the pair in that case.
+    return !solutions.length || solutions.some(solution =>
+      solution.suspect === event.suggestion.suspect && solution.weapon === event.suggestion.weapon);
   });
   if (prior) {
     return {

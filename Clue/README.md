@@ -24,7 +24,7 @@ The challenge provides Node.js 24 and an OpenAI-compatible local AI relay. I als
 10. Follows the strongest Baseline pattern: choose one suspect/weapon pair with broad remaining room support, keep it stable, and vary the room until the solution is uniquely determined.
 9. Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
 
-The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for room planning, suggestions, and accusation decisions; movement paths and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
+The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for suggestion and accusation decisions; room selection, movement paths, and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
 
 The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary and the number of locally possible solutions. Accusations are certainty-gated: the local solver must identify exactly one complete suspect/weapon/room triple. The AI cannot override that gate with confidence, and the agent continues making legal suggestions while multiple triples remain possible.
 
@@ -75,7 +75,7 @@ These checks were run from the project root:
 | Crowd-aware movement | Other suspects are already gathered in a room | Movement prefers the busiest visible room so the agent can participate in the same information-rich suggestions. If it must leave that room first, it uses the nearest staging room and targets the hub on the next turn. |
 | Empty AI response | The relay returns `content: null` or unusable output | The wrapper ignores it and uses the local legal movement or deduction fallback. |
 | Structured relay output | The model returns prose or an empty content field | Requests include JSON-object response formatting; invalid responses still use the local fallback. |
-| AI-call allocation | Local crowd/focus logic already identifies a useful room | The relay is skipped for that movement decision, preserving calls for suggestions and accusations. |
+| AI-call allocation | Any movement decision | Movement is always local, preserving the entire relay budget for suggestions and accusations. |
 
 ## Algorithmic-to-AI test case
 
