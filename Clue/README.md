@@ -287,3 +287,9 @@ npm run check
 - AIAgent did not accuse because the local solver had not proven the exact room. Baseline Bo 2 then tested Peacock/Candlestick in Library and correctly accused Peacock, Candlestick, and Library before AIAgent received another turn.
 - The agent’s behavior was evidence-conservative and legal, but it lost the race because Baseline Bo 2 accumulated the final room evidence first.
 
+### Replay 23
+
+- In this replay, AIAgent later suggested Mr. Green with the Wrench in the Kitchen even though Kitchen was one of its starting cards.
+- This was intentional and legal under the classic rules. A player may include one or more cards from their own hand in a suggestion to test the other cards or mislead opponents.
+- The local solver still treats Kitchen as known-not-solution; using it in a suggestion does not make Kitchen a candidate solution. Since the agent was physically in Kitchen, it was also the only legal room it could name.
+
