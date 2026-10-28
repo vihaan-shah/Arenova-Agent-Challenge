@@ -270,3 +270,10 @@ npm run check
 - The agent had not eliminated Billiard Room, so the accusation was a premature room guess even though the suspect and weapon were plausible.
 - Follow-up fix: accusation validation now requires the local solver to identify the unique complete solution triple. Confidence and turn deadlines cannot override that certainty check; the agent continues investigating while any alternative triple remains.
 
+### Replay 21
+
+- In this pasted match, AIAgent was moved into the Ballroom by another player's suggestion and made a legal suggestion there.
+- On the following turn, it moved out of the Ballroom but stopped in a corridor, so it did not receive a new suggestion opportunity before the match ended.
+- Under the classic Hasbro rules, a player may make only one suggestion after entering a particular room and must leave and later re-enter before suggesting that room again. A player also cannot guarantee a suggestion when the dice and blocked paths do not reach another room.
+- The current breadth-first movement logic already prioritizes entering any reachable room, regardless of which room it is. No rules-breaking change was made for this case.
+
