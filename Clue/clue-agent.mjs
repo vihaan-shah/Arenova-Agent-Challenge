@@ -281,15 +281,29 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
       const currentRoomSupport = roomSolutions.filter(solution =>
         solution.suspect === suspect && solution.weapon === weapon).length;
       const opponent = opponentPairSupport.get(key);
-      pairs.push({ suspect, weapon, support, roomCoverage, currentRoomSupport, repeated: tried.has(key) });
+      const repeatedOpponent = opponent && (opponent.count >= 2 || opponent.rooms.size >= 2);
+      pairs.push({
+        suspect,
+        weapon,
+        support,
+        roomCoverage,
+        currentRoomSupport,
+        opponentPriority: repeatedOpponent ? 1 : 0,
+        repeated: tried.has(key),
+      });
       pairs[pairs.length - 1].opponentSupport = opponent
         ? opponent.count + opponent.rooms.size / 10
         : 0;
     }
   }
-  const fresh = pairs.filter(pair => !pair.repeated);
-  const choices = fresh.length ? fresh : pairs;
-  choices.sort((a, b) => b.support - a.support || b.roomCoverage - a.roomCoverage ||
+  // Never follow a repeated opponent hypothesis that the local solver has
+  // already ruled out. When it remains possible, however, give it priority:
+  // repeated public guesses across rooms are the strongest Baseline signal.
+  const possible = solutions.length ? pairs.filter(pair => pair.support > 0) : pairs;
+  const fresh = possible.filter(pair => !pair.repeated);
+  const choices = fresh.length ? fresh : possible;
+  choices.sort((a, b) => b.opponentPriority - a.opponentPriority || b.support - a.support ||
+    b.roomCoverage - a.roomCoverage ||
     b.currentRoomSupport - a.currentRoomSupport || b.opponentSupport - a.opponentSupport ||
     a.suspect.localeCompare(b.suspect) || a.weapon.localeCompare(b.weapon));
   const choice = choices[0] ?? { suspect: start.suspects[0], weapon: start.weapons[0] };

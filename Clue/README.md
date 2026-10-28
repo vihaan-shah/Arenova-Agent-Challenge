@@ -319,4 +319,5 @@ npm run check
 - Baseline repeatedly tested the same Peacock/Rope pair across Lounge, Conservatory, Ballroom, Kitchen, and Study, then accused the supported Study solution.
 - AIAgent’s opponent-pattern feature was not strong enough in this replay: repeated opponent hypotheses were only tie-breakers behind local candidate support, so AIAgent kept selecting other weapon pairs.
 - The agent was therefore close on the suspect but far on the weapon and room, and Baseline won by maintaining one pair and cycling rooms.
+- Follow-up fix: a repeated opponent pair tested across at least two suggestions or rooms now becomes the preferred focus when it remains locally possible. It is still treated as a hypothesis, never as proof.
 
