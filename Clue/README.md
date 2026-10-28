@@ -310,4 +310,5 @@ npm run check
 - AIAgent’s final Plum/Lead Pipe suggestion in Ballroom was unrefuted, but Ballroom was one of AIAgent’s own cards. Therefore the suggestion did not prove Ballroom as the solution room.
 - Baseline Bo 2 later tested Plum/Lead Pipe in Conservatory. That suggestion was unrefuted and Conservatory was not in its hand, so Baseline Bo 2 had a fully supported solution and correctly accused.
 - This replay confirms that the Baseline-style movement and pair strategy were active. Baseline still won because it reached the room that supplied the final certainty one turn earlier.
+- Follow-up movement fix: when starting in a room, the pathfinder now checks every legal exit for the preferred target room before accepting a corridor fallback. The original pathfinder could stop from the first exit and fail to inspect a later exit, even when that later exit reached Conservatory within the roll.
 

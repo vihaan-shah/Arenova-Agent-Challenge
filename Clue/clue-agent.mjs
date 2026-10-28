@@ -399,13 +399,27 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   }
 
   // From a room, leave through any unblocked door. Entering another room may
-  // use fewer than the full roll, as permitted by the rules.
-  for (const door of board.doors.filter(({ room }) => room === origin.room)) {
+  // use fewer than the full roll, as permitted by the rules. Search all exits
+  // for the preferred room before accepting a corridor fallback; otherwise a
+  // path from the first exit could hide a reachable target behind a later exit.
+  const exits = board.doors.filter(({ room }) => room === origin.room).filter(door => {
     const doorKey = key(door.corridor);
-    if (startingSquares.has(doorKey) || occupied.has(doorKey) || !isOpen(door.corridor)) continue;
-    const result = searchRoom(door.corridor, [door.corridor], new Set([doorKey]), origin.room, preferredRoom) ??
-      searchRoom(door.corridor, [door.corridor], new Set([doorKey]), origin.room) ??
-      search(door.corridor, [door.corridor], new Set([doorKey]), origin.room);
+    return !startingSquares.has(doorKey) && !occupied.has(doorKey) && isOpen(door.corridor);
+  });
+
+  for (const door of exits) {
+    const doorKey = key(door.corridor);
+    const result = searchRoom(door.corridor, [door.corridor], new Set([doorKey]), origin.room, preferredRoom);
+    if (result) return result;
+  }
+  for (const door of exits) {
+    const doorKey = key(door.corridor);
+    const result = searchRoom(door.corridor, [door.corridor], new Set([doorKey]), origin.room);
+    if (result) return result;
+  }
+  for (const door of exits) {
+    const doorKey = key(door.corridor);
+    const result = search(door.corridor, [door.corridor], new Set([doorKey]), origin.room);
     if (result) return result;
   }
   return { type: "turn-ended" };
