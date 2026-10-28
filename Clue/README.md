@@ -279,3 +279,11 @@ npm run check
 - Under the classic Hasbro rules, a player may make only one suggestion after entering a particular room and must leave and later re-enter before suggesting that room again. A player also cannot guarantee a suggestion when the dice and blocked paths do not reach another room.
 - The current breadth-first movement logic already prioritizes entering any reachable room, regardless of which room it is. No rules-breaking change was made for this case.
 
+### Replay 22
+
+- This match began with AIAgent as Colonel Mustard and Baseline Bo 2 as Miss Scarlet.
+- AIAgent made four visible relay calls: movement planning into Dining Room, a Green/Candlestick suggestion, a finish decision, and a later Mustard/Candlestick suggestion. Later decisions used the deterministic fallback after the AI-call budget was exhausted.
+- AIAgent successively tested Green/Candlestick, Mustard/Candlestick, Peacock/Rope, and Peacock/Candlestick. Green, Mustard, and Rope were refuted, while the final Peacock/Candlestick/Study suggestion was not refuted.
+- AIAgent did not accuse because the local solver had not proven the exact room. Baseline Bo 2 then tested Peacock/Candlestick in Library and correctly accused Peacock, Candlestick, and Library before AIAgent received another turn.
+- The agent’s behavior was evidence-conservative and legal, but it lost the race because Baseline Bo 2 accumulated the final room evidence first.
+
