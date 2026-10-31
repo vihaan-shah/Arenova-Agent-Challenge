@@ -438,6 +438,16 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   }
 
   if (origin.kind === "corridor") {
+    // On the opening move there is no established focus pair to investigate.
+    // Prefer the nearest reachable room so a distant strategic target cannot
+    // cost the agent its first useful suggestion.
+    const hasOwnSuggestion = all.some(event =>
+      event.type === "suggestion-made" && event.suggester === start.you.seat,
+    );
+    if (!hasOwnSuggestion) {
+      const nearestRoom = searchRoom(origin, [], new Set([key(origin)]), null, null);
+      if (nearestRoom) return nearestRoom;
+    }
     return searchRoom(origin, [], new Set([key(origin)]), null, preferredRoom) ??
       searchRoom(origin, [], new Set([key(origin)]), null) ??
       search(origin, [], new Set([key(origin)])) ?? { type: "turn-ended" };
