@@ -360,11 +360,12 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
     "For accuse-or-end, return an accusation only when the local evidence proves one exact suspect/weapon/room triple; otherwise return {\"type\":\"turn-ended\"}. Confidence is not enough when any alternative triple remains.",
+    "If solutionSearchComplete is false, possibleSolutionCount is partial and must not be treated as exact evidence.",
     "Use opponentPatterns as soft strategic evidence: repeated opponent suspect/weapon pairs or pairs tested across rooms can identify useful hypotheses to investigate. Never treat an opponent's suggestion as proof, because that player may hold one of the named cards.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
-    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, focusPair, opponentPatterns: opponentPatterns(start, history) })}`,
+    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, solutionSearchComplete: analyzeHistory(history).solutionsComplete, focusPair, opponentPatterns: opponentPatterns(start, history) })}`,
     ...(rejectedAction ? [
       `The previous accusation was rejected by the local solver because it is not a possible solution: ${JSON.stringify({ suspect: rejectedAction.suspect, weapon: rejectedAction.weapon, room: rejectedAction.room })}. Choose a different still-possible triple; do not repeat it.`,
     ] : []),
@@ -426,9 +427,9 @@ async function handle(message) {
   }
 
   let fallback = await safeHandle(message, { preferredRoom });
-  if (request.kind === "make-suggestion") {
-    // The stable-pair policy applies even when the relay is unavailable or
-    // returns malformed/strategically inconsistent output.
+  if (fallback?.type === "suggestion-made") {
+    // Apply the stable-pair policy to suggestions returned through both
+    // explicit make-suggestion and the local take-turn fallback path.
     fallback = enforceFocusPair(start, message.history ?? [], fallback);
   }
 
