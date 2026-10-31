@@ -288,16 +288,12 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solu
   // and the number of rooms that pair can still occupy. The room is the
   // variable we want to isolate, so a pair supported across several rooms is
   // more useful than a pair supported only by the current room.
-  // Partial solver output is unstable across time-limited searches. Keep it
-  // out of pair scoring entirely; incomplete searches should rely on public
-  // opponent patterns and fresh-room coverage instead.
-  const rankingSolutions = solutionsComplete ? solutions : [];
-  const roomSolutions = rankingSolutions.filter(solution => solution.room === room);
+  const roomSolutions = solutions.filter(solution => solution.room === room);
   const pairs = [];
   for (const suspect of suspects) {
     for (const weapon of weapons) {
       const key = `${suspect}|${weapon}`;
-      const pairSolutions = rankingSolutions.filter(solution =>
+      const pairSolutions = solutions.filter(solution =>
         solution.suspect === suspect && solution.weapon === weapon);
       const support = pairSolutions.length;
       const roomCoverage = new Set(pairSolutions.map(solution => solution.room)).size;
@@ -361,12 +357,10 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   if (origin.kind === "room") {
     if (maySuggestWithoutMoving) return chooseSuggestion(start, origin.room, shownToMe, solutions, all, solutionsComplete);
 
-    const passages = (board.secretPassages ?? []).filter(({ from, to }) =>
-      from === origin.room || to === origin.room,
+    const passage = board.secretPassages?.find(({ from, to }) =>
+      (from === origin.room || to === origin.room) &&
+      (!preferredRoom || from === preferredRoom || to === preferredRoom),
     );
-    const passage = passages.find(({ from, to }) =>
-      from === preferredRoom || to === preferredRoom,
-    ) ?? passages[0];
     if (passage) {
       const enterRoom = passage.from === origin.room ? passage.to : passage.from;
       return { type: "pawn-moved", path: [], enterRoom, useSecretPassage: true };
