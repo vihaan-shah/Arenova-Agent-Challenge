@@ -278,9 +278,10 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solu
   for (const event of all) {
     if (event.type !== "suggestion-made" || event.suggester === start.you.seat) continue;
     const key = `${event.suggestion.suspect}|${event.suggestion.weapon}`;
-    const current = opponentPairSupport.get(key) ?? { count: 0, rooms: new Set() };
+    const current = opponentPairSupport.get(key) ?? { count: 0, rooms: new Set(), unrefuted: 0 };
     current.count += 1;
     current.rooms.add(event.suggestion.room);
+    if (event.refuter === null) current.unrefuted += 1;
     opponentPairSupport.set(key, current);
   }
 
@@ -305,13 +306,16 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solu
         solution.suspect === suspect && solution.weapon === weapon).length;
       const opponent = opponentPairSupport.get(key);
       const repeatedOpponent = opponent && (opponent.count >= 2 || opponent.rooms.size >= 2);
+      const opponentPriority = repeatedOpponent
+        ? opponent.count + opponent.rooms.size * 2 + opponent.unrefuted / 2
+        : 0;
       pairs.push({
         suspect,
         weapon,
         support,
         roomCoverage,
         currentRoomSupport,
-        opponentPriority: repeatedOpponent ? 1 : 0,
+        opponentPriority,
         repeated: tried.has(key),
       });
       pairs[pairs.length - 1].opponentSupport = opponent

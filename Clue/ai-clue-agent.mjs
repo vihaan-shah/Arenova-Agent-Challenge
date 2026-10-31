@@ -222,16 +222,18 @@ function historyFocusPair(start, history) {
   for (const event of allEvents(history)) {
     if (event.type === "card-shown" && event.shownTo === start.you.seat && event.card) known.add(event.card);
   }
-  for (const event of [...allEvents(history)].reverse()) {
-    if (event.type !== "suggestion-made" || event.suggester !== start.you.seat) continue;
-    const pair = { suspect: event.suggestion.suspect, weapon: event.suggestion.weapon };
-    if ((start.suspects ?? []).includes(pair.suspect) &&
-        (start.weapons ?? []).includes(pair.weapon) &&
-        !known.has(`suspect:${pair.suspect}`) &&
-        !known.has(`weapon:${pair.weapon}`) &&
-        pairHasUntestedRoom(start, history, pair)) return pair;
-  }
-  return null;
+  const event = [...allEvents(history)].reverse().find(
+    candidate => candidate.type === "suggestion-made" && candidate.suggester === start.you.seat,
+  );
+  if (!event) return null;
+  const pair = { suspect: event.suggestion.suspect, weapon: event.suggestion.weapon };
+  return (start.suspects ?? []).includes(pair.suspect) &&
+    (start.weapons ?? []).includes(pair.weapon) &&
+    !known.has(`suspect:${pair.suspect}`) &&
+    !known.has(`weapon:${pair.weapon}`) &&
+    pairHasUntestedRoom(start, history, pair)
+    ? pair
+    : null;
 }
 
 function busiestRoom(start, history) {
@@ -344,6 +346,17 @@ function validateMovementPlan(start, action) {
   return null;
 }
 
+function relayAllowed(request, history) {
+  if (request.kind !== "make-suggestion" || aiCalls < MAX_AI_CALLS - 1) return true;
+  const events = allEvents(history);
+  const currentTurn = Math.max(0, ...events.map(event => Number(event.turn) || 0));
+  const ownSuggestions = events.filter(event =>
+    event.type === "suggestion-made" && event.suggester === seat,
+  ).length;
+  // Reserve the final relay call for a late-game suggestion or accusation.
+  return currentTurn >= 12 || ownSuggestions >= 2;
+}
+
 async function askRelay(start, history, request, fallback, mode = "decision", rejectedAction = null) {
   const baseUrl = process.env.OPENAI_BASE_URL;
   const apiKey = process.env.OPENAI_API_KEY;
@@ -436,6 +449,7 @@ async function handle(message) {
   // The model is used only where it can add strategic value. Local code is
   // already safer and faster for paths and card-refutation responses.
   if (!["make-suggestion", "accuse-or-end"].includes(request.kind)) return fallback;
+  if (!relayAllowed(request, message.history ?? [])) return fallback;
 
   const aiAction = await askRelay(start, message.history ?? [], request, fallback, "decision");
   const result = validateAiAction(start, message.history ?? [], request, aiAction, fallback);
