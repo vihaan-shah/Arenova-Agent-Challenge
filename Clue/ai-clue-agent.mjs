@@ -327,9 +327,9 @@ function validateAiAction(start, history, request, action, fallback) {
     // accepted only when the local solver proves the complete triple.
     if (action.type === "accusation-made" && validTriple(start, action)) {
       const state = analyzeHistory(history);
-      const certain = state.knownSolution;
-      if (certain && action.suspect === certain.suspect &&
-        action.weapon === certain.weapon && action.room === certain.room) {
+      const supported = state.knownSolution ?? state.raceSolution;
+      if (supported && action.suspect === supported.suspect &&
+        action.weapon === supported.weapon && action.room === supported.room) {
         return { type: "accusation-made", suspect: action.suspect, weapon: action.weapon, room: action.room };
       }
     }
@@ -372,7 +372,7 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
     "Return exactly one JSON response object and no markdown.",
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
-    "For accuse-or-end, return an accusation only when the local evidence proves one exact suspect/weapon/room triple; otherwise return {\"type\":\"turn-ended\"}. Confidence is not enough when any alternative triple remains.",
+    "For accuse-or-end, return an accusation only when the local evidence proves one exact triple; the local fallback may also make a conservative late-game accusation when 2-3 complete candidates remain but exactly one matches a repeatedly tested focus pair. Otherwise return {\"type\":\"turn-ended\"}.",
     "If solutionSearchComplete is false, possibleSolutionCount is partial and must not be treated as exact evidence.",
     "Use opponentPatterns as soft strategic evidence: repeated opponent suspect/weapon pairs or pairs tested across rooms can identify useful hypotheses to investigate. Never treat an opponent's suggestion as proof, because that player may hold one of the named cards.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",

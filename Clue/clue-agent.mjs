@@ -172,6 +172,30 @@ function inferSolutions(start, all, shownToMe) {
   return { candidates, complete: true };
 }
 
+function raceAwareSolution(start, all, inference) {
+  if (!inference.complete || inference.candidates.length < 2 || inference.candidates.length > 3) return null;
+  const currentTurn = Math.max(0, ...all.map(event => Number(event.turn) || 0));
+  const lateTurn = Math.max(8, (start.seats?.length ?? 6) * 2 - 2);
+  if (currentTurn < lateTurn) return null;
+
+  const ownSuggestions = all.filter(event =>
+    event.type === "suggestion-made" && event.suggester === start.you.seat,
+  );
+  if (ownSuggestions.length < 2) return null;
+  const latest = ownSuggestions.at(-1);
+  const pairSuggestions = ownSuggestions.filter(event =>
+    event.suggestion.suspect === latest.suggestion.suspect &&
+    event.suggestion.weapon === latest.suggestion.weapon,
+  );
+  if (pairSuggestions.length < 2) return null;
+
+  const matching = inference.candidates.filter(candidate =>
+    candidate.suspect === latest.suggestion.suspect &&
+    candidate.weapon === latest.suggestion.weapon,
+  );
+  return matching.length === 1 ? matching[0] : null;
+}
+
 function snapshot(history) {
   const all = events(history);
   const start = setupFrom(history);
@@ -218,6 +242,7 @@ function snapshot(history) {
     roll,
     maySuggestWithoutMoving,
     knownSolution: inference.complete && inference.candidates.length === 1 ? inference.candidates[0] : null,
+    raceSolution: raceAwareSolution(start, all, inference),
     solutions: inference.candidates,
     solutionsComplete: inference.complete,
     shownToMe,
@@ -485,9 +510,10 @@ function decide(history, request, options = {}) {
   const { start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all } = state;
 
   if (request.kind === "take-turn") {
-    // The only certain solution is a suggestion nobody could refute.
-    if (state.knownSolution) {
-      return { type: "accusation-made", ...state.knownSolution };
+    // Prefer certainty, with a conservative late-game race fallback.
+    const supportedSolution = state.knownSolution ?? state.raceSolution;
+    if (supportedSolution) {
+      return { type: "accusation-made", ...supportedSolution };
     }
     return movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all,
       options.preferredRoom ?? null, state.solutionsComplete);
@@ -513,8 +539,9 @@ function decide(history, request, options = {}) {
   }
 
   if (request.kind === "accuse-or-end") {
-    return state.knownSolution
-      ? { type: "accusation-made", ...state.knownSolution }
+    const supportedSolution = state.knownSolution ?? state.raceSolution;
+    return supportedSolution
+      ? { type: "accusation-made", ...supportedSolution }
       : { type: "turn-ended" };
   }
 
