@@ -224,21 +224,40 @@ function snapshot(history) {
   };
 }
 
-function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
+function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solutionsComplete = true) {
   const unavailable = card => shownToMe.has(card);
   const suspects = (start.suspects ?? []).filter(value => !unavailable(cardId("suspect", value)));
   const weapons = (start.weapons ?? []).filter(value => !unavailable(cardId("weapon", value)));
 
-  // Keep the last usable pair while changing rooms. This is deliberately
-  // derived from history so it also works after a restart or relay fallback.
+  const testedRoomsForPair = pair => new Set(all
+    .filter(event => event.type === "suggestion-made" && event.suggester === start.you.seat &&
+      event.suggestion.suspect === pair.suspect && event.suggestion.weapon === pair.weapon)
+    .map(event => event.suggestion.room));
+
+  const hasUntestedRoom = pair => {
+    const tested = testedRoomsForPair(pair);
+    const candidateRooms = solutionsComplete
+      ? solutions
+        .filter(solution => solution.suspect === pair.suspect && solution.weapon === pair.weapon)
+        .map(solution => solution.room)
+      : (start.rooms ?? []);
+    return [...new Set(candidateRooms)].some(candidateRoom => !tested.has(candidateRoom));
+  };
+
+  // Keep the last usable pair while changing rooms, but retire it after the
+  // current room has already been tested or all of its candidate rooms are
+  // exhausted. This prevents endless repeated suggestions with one pair.
   const prior = [...all].reverse().find(event => {
     if (event.type !== "suggestion-made" || event.suggester !== start.you.seat) return false;
     if (!suspects.includes(event.suggestion.suspect) || !weapons.includes(event.suggestion.weapon)) return false;
-    // If the solver has a nonempty candidate set, do not keep testing a pair
-    // that visible evidence has already ruled out. An empty set may be a
-    // bounded-search timeout, so preserve the pair in that case.
-    return !solutions.length || solutions.some(solution =>
-      solution.suspect === event.suggestion.suspect && solution.weapon === event.suggestion.weapon);
+    // If the solver completed, do not keep testing a pair that visible
+    // evidence ruled out. An incomplete search is only a ranking hint, so
+    // preserve a usable pair until its rooms have been investigated.
+    const pair = { suspect: event.suggestion.suspect, weapon: event.suggestion.weapon };
+    const tested = testedRoomsForPair(pair);
+    const pairStillPossible = !solutionsComplete || solutions.some(solution =>
+      solution.suspect === pair.suspect && solution.weapon === pair.weapon);
+    return pairStillPossible && hasUntestedRoom(pair) && !tested.has(room);
   });
   if (prior) {
     return {
@@ -299,7 +318,11 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = []) {
   // Never follow a repeated opponent hypothesis that the local solver has
   // already ruled out. When it remains possible, however, give it priority:
   // repeated public guesses across rooms are the strongest Baseline signal.
-  const possible = solutions.length ? pairs.filter(pair => pair.support > 0) : pairs;
+  // A timed-out solver returns only a partial candidate list. Treat that list
+  // as a ranking hint, never as a hard filter that can discard the true pair.
+  const possible = solutionsComplete && solutions.length
+    ? pairs.filter(pair => pair.support > 0)
+    : pairs;
   const fresh = possible.filter(pair => !pair.repeated);
   const choices = fresh.length ? fresh : possible;
   choices.sort((a, b) => b.opponentPriority - a.opponentPriority || b.support - a.support ||
@@ -318,7 +341,7 @@ function latestSuggestionRefutedByMe(history, mySeat) {
   );
 }
 
-function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all, preferredRoom = null) {
+function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all, preferredRoom = null, solutionsComplete = true) {
   const character = start.you.character;
   const origin = positions[character];
   const board = start.board;
@@ -332,7 +355,7 @@ function movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, so
   );
 
   if (origin.kind === "room") {
-    if (maySuggestWithoutMoving) return chooseSuggestion(start, origin.room, shownToMe, solutions, all);
+    if (maySuggestWithoutMoving) return chooseSuggestion(start, origin.room, shownToMe, solutions, all, solutionsComplete);
 
     const passage = board.secretPassages?.find(({ from, to }) =>
       (from === origin.room || to === origin.room) &&
@@ -448,13 +471,14 @@ function decide(history, request, options = {}) {
     if (state.knownSolution) {
       return { type: "accusation-made", ...state.knownSolution };
     }
-    return movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all, options.preferredRoom ?? null);
+    return movement(start, positions, roll, maySuggestWithoutMoving, shownToMe, solutions, all,
+      options.preferredRoom ?? null, state.solutionsComplete);
   }
 
   if (request.kind === "make-suggestion") {
     const room = positions[start.you.character]?.room;
     if (!room) throw new Error("cannot suggest outside a room");
-    return chooseSuggestion(start, room, shownToMe, solutions, all);
+    return chooseSuggestion(start, room, shownToMe, solutions, all, state.solutionsComplete);
   }
 
   if (request.kind === "show-card") {
