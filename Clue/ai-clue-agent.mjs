@@ -46,6 +46,10 @@ function setup(history) {
 }
 
 function currentRoom(start, history) {
+  return currentPosition(start, history)?.room ?? null;
+}
+
+function currentPosition(start, history) {
   const positions = Object.fromEntries(
     Object.entries(start.suspectPositions ?? {}).map(([id, position]) => [id, { ...position }]),
   );
@@ -55,7 +59,7 @@ function currentRoom(start, history) {
       positions[event.suggestion.suspect] = { kind: "room", room: event.suggestion.room };
     }
   }
-  return positions[start.you.character]?.room ?? null;
+  return positions[start.you.character] ?? null;
 }
 
 function validTriple(start, value) {
@@ -173,13 +177,42 @@ function strategicRoom(start, history) {
       event.suggestion.suspect === pair.suspect &&
       event.suggestion.weapon === pair.weapon)
     .map(event => event.suggestion.room));
-  const candidates = state.solutions
-    .filter(solution => solution.suspect === pair.suspect && solution.weapon === pair.weapon)
-    .map(solution => solution.room);
-  const rooms = [...new Set(candidates)];
-  return rooms
-    .filter(room => !tested.has(room))
-    .sort((a, b) => a.localeCompare(b))[0] ?? null;
+  // A timed-out deduction search is not a complete candidate list. In that
+  // case, keep all rooms available for the focused pair instead of letting a
+  // partial list silently redirect movement to the crowd fallback.
+  const candidates = state.solutionsComplete
+    ? state.solutions
+      .filter(solution => solution.suspect === pair.suspect && solution.weapon === pair.weapon)
+      .map(solution => solution.room)
+    : (start.rooms ?? []);
+  const rooms = [...new Set(candidates)].filter(room => !tested.has(room));
+  const position = currentPosition(start, history);
+  const doors = start.board?.doors ?? [];
+  const passages = start.board?.secretPassages ?? [];
+  const roomDoors = room => doors.filter(door => door.room === room).map(door => door.corridor);
+  const distanceToRoom = room => {
+    if (!position) return Number.POSITIVE_INFINITY;
+    if (position.kind === "room") {
+      if (position.room === room) return 0;
+      if (passages.some(passage =>
+        (passage.from === position.room && passage.to === room) ||
+        (passage.to === position.room && passage.from === room))) return 0;
+      const from = roomDoors(position.room);
+      const to = roomDoors(room);
+      if (!from.length || !to.length) return Number.POSITIVE_INFINITY;
+      return Math.min(...from.flatMap(a => to.map(b =>
+        Math.abs(a.row - b.row) + Math.abs(a.column - b.column))));
+    }
+    const to = roomDoors(room);
+    if (!to.length) return Number.POSITIVE_INFINITY;
+    return Math.min(...to.map(door =>
+      Math.abs(position.row - door.corridor.row) +
+      Math.abs(position.column - door.corridor.column)));
+  };
+  const support = room => state.solutions.filter(solution =>
+    solution.suspect === pair.suspect && solution.weapon === pair.weapon && solution.room === room).length;
+  return rooms.sort((a, b) => distanceToRoom(a) - distanceToRoom(b) ||
+    support(b) - support(a) || a.localeCompare(b))[0] ?? null;
 }
 
 // The deterministic engine can restart without the wrapper's in-memory
@@ -327,11 +360,12 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
     "For accuse-or-end, return an accusation only when the local evidence proves one exact suspect/weapon/room triple; otherwise return {\"type\":\"turn-ended\"}. Confidence is not enough when any alternative triple remains.",
+    "If solutionSearchComplete is false, possibleSolutionCount is partial and must not be treated as exact evidence.",
     "Use opponentPatterns as soft strategic evidence: repeated opponent suspect/weapon pairs or pairs tested across rooms can identify useful hypotheses to investigate. Never treat an opponent's suggestion as proof, because that player may hold one of the named cards.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
-    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, focusPair, opponentPatterns: opponentPatterns(start, history) })}`,
+    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, solutionSearchComplete: analyzeHistory(history).solutionsComplete, focusPair, opponentPatterns: opponentPatterns(start, history) })}`,
     ...(rejectedAction ? [
       `The previous accusation was rejected by the local solver because it is not a possible solution: ${JSON.stringify({ suspect: rejectedAction.suspect, weapon: rejectedAction.weapon, room: rejectedAction.room })}. Choose a different still-possible triple; do not repeat it.`,
     ] : []),
@@ -393,9 +427,9 @@ async function handle(message) {
   }
 
   let fallback = await safeHandle(message, { preferredRoom });
-  if (request.kind === "make-suggestion") {
-    // The stable-pair policy applies even when the relay is unavailable or
-    // returns malformed/strategically inconsistent output.
+  if (fallback?.type === "suggestion-made") {
+    // Apply the stable-pair policy to suggestions returned through both
+    // explicit make-suggestion and the local take-turn fallback path.
     fallback = enforceFocusPair(start, message.history ?? [], fallback);
   }
 

@@ -288,12 +288,16 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solu
   // and the number of rooms that pair can still occupy. The room is the
   // variable we want to isolate, so a pair supported across several rooms is
   // more useful than a pair supported only by the current room.
-  const roomSolutions = solutions.filter(solution => solution.room === room);
+  // A timed-out search returns a partial list. Do not let that unstable list
+  // determine pair support or room coverage; use it only as non-authoritative
+  // context while relying on public patterns and fresh-room coverage.
+  const rankingSolutions = solutionsComplete ? solutions : [];
+  const roomSolutions = rankingSolutions.filter(solution => solution.room === room);
   const pairs = [];
   for (const suspect of suspects) {
     for (const weapon of weapons) {
       const key = `${suspect}|${weapon}`;
-      const pairSolutions = solutions.filter(solution =>
+      const pairSolutions = rankingSolutions.filter(solution =>
         solution.suspect === suspect && solution.weapon === weapon);
       const support = pairSolutions.length;
       const roomCoverage = new Set(pairSolutions.map(solution => solution.room)).size;
