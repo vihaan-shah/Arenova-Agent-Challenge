@@ -69,6 +69,23 @@ function validTriple(start, value) {
     (start.rooms ?? []).includes(value.room);
 }
 
+function legalSuggestion(start, history, value) {
+  return value?.type === "suggestion-made" && validTriple(start, value) &&
+    value.room === currentRoom(start, history);
+}
+
+function deterministicSuggestion(start, history) {
+  const state = analyzeHistory(history);
+  const room = state.positions[start.you.character]?.room;
+  if (!room) return null;
+  const known = state.shownToMe;
+  const suspect = start.suspects?.find(value => !known.has(`suspect:${value}`));
+  const weapon = start.weapons?.find(value => !known.has(`weapon:${value}`));
+  return suspect && weapon
+    ? { type: "suggestion-made", suspect, weapon, room }
+    : null;
+}
+
 function latestSuggestion(history, mySeat) {
   return [...allEvents(history)].reverse().find(
     event => event.type === "suggestion-made" &&
@@ -347,7 +364,7 @@ function validateMovementPlan(start, action) {
 }
 
 function relayAllowed(request, history) {
-  if (request.kind !== "make-suggestion" || aiCalls < MAX_AI_CALLS - 1) return true;
+  if (aiCalls < MAX_AI_CALLS - 1) return true;
   const events = allEvents(history);
   const currentTurn = Math.max(0, ...events.map(event => Number(event.turn) || 0));
   const ownSuggestions = events.filter(event =>
@@ -439,16 +456,29 @@ async function handle(message) {
     preferredRoom = localRoomGoal(start, message.history ?? []);
   }
 
-  let fallback = await safeHandle(message, { preferredRoom });
+  let fallback;
+  try {
+    fallback = await safeHandle(message, { preferredRoom });
+  } catch (error) {
+    console.error(`Local Clue fallback failed: ${error.message}`);
+    fallback = request.kind === "make-suggestion" ? deterministicSuggestion(start, message.history ?? []) : null;
+  }
+  if (request.kind === "make-suggestion" && !legalSuggestion(start, message.history ?? [], fallback)) {
+    fallback = deterministicSuggestion(start, message.history ?? []);
+  }
   if (fallback?.type === "suggestion-made") {
     // Apply the stable-pair policy to suggestions returned through both
     // explicit make-suggestion and the local take-turn fallback path.
     fallback = enforceFocusPair(start, message.history ?? [], fallback);
+    if (!legalSuggestion(start, message.history ?? [], fallback)) {
+      fallback = deterministicSuggestion(start, message.history ?? []);
+    }
   }
 
   // The model is used only where it can add strategic value. Local code is
   // already safer and faster for paths and card-refutation responses.
   if (!["make-suggestion", "accuse-or-end"].includes(request.kind)) return fallback;
+  if (fallback?.type === "accusation-made") return fallback;
   if (!relayAllowed(request, message.history ?? [])) return fallback;
 
   const aiAction = await askRelay(start, message.history ?? [], request, fallback, "decision");
