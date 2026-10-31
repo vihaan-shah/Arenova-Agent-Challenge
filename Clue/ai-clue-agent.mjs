@@ -7,6 +7,14 @@ import { handle as safeHandle, snapshot as analyzeHistory } from "./clue-agent.m
 const MAX_AI_CALLS = 4; // Keeps worst-case relay cost within the documented seat budget.
 let aiCalls = 0;
 let focusPair = null;
+const analysisCache = new Map();
+
+function analyzed(history) {
+  const last = history.at(-1);
+  const key = `${history.length}:${last?.seq ?? ""}`;
+  if (!analysisCache.has(key)) analysisCache.set(key, analyzeHistory(history));
+  return analysisCache.get(key);
+}
 
 function allEvents(history) {
   return history.map(item => item.event);
@@ -146,14 +154,14 @@ function usablePair(start, history, pair) {
 
 function pairStillPossible(start, history, pair) {
   if (!usablePair(start, history, pair)) return false;
-  const state = analyzeHistory(history);
+  const state = analyzed(history);
   return !state.solutionsComplete || state.solutions.some(solution =>
     solution.suspect === pair.suspect && solution.weapon === pair.weapon);
 }
 
 function pairHasUntestedRoom(start, history, pair) {
   if (!pairStillPossible(start, history, pair)) return false;
-  const state = analyzeHistory(history);
+  const state = analyzed(history);
   const tested = new Set(allEvents(history)
     .filter(event => event.type === "suggestion-made" && event.suggester === start.you.seat &&
       event.suggestion.suspect === pair.suspect && event.suggestion.weapon === pair.weapon)
@@ -171,7 +179,7 @@ function strategicRoom(start, history) {
     ? focusPair
     : historyFocusPair(start, history);
   if (!pair) return null;
-  const state = analyzeHistory(history);
+  const state = analyzed(history);
   const tested = new Set(allEvents(history)
     .filter(event => event.type === "suggestion-made" &&
       event.suggestion.suspect === pair.suspect &&
@@ -190,6 +198,33 @@ function strategicRoom(start, history) {
   const doors = start.board?.doors ?? [];
   const passages = start.board?.secretPassages ?? [];
   const roomDoors = room => doors.filter(door => door.room === room).map(door => door.corridor);
+  const pointKey = point => `${point.row},${point.column}`;
+  const corridorDistance = (origins, target) => {
+    const targetKeys = new Set(roomDoors(target).map(pointKey));
+    const rows = start.board?.rows ?? [];
+    const height = start.board?.height ?? rows.length;
+    const width = start.board?.width ?? rows[0]?.length ?? 0;
+    const queue = origins.map(point => ({ point, distance: 0 }));
+    const visited = new Set(origins.map(pointKey));
+    while (queue.length) {
+      const { point, distance } = queue.shift();
+      if (targetKeys.has(pointKey(point))) return distance;
+      const neighbors = [
+        { row: point.row - 1, column: point.column },
+        { row: point.row, column: point.column - 1 },
+        { row: point.row, column: point.column + 1 },
+        { row: point.row + 1, column: point.column },
+      ];
+      for (const next of neighbors) {
+        const key = pointKey(next);
+        if (next.row < 0 || next.row >= height || next.column < 0 || next.column >= width ||
+            rows[next.row]?.[next.column] !== "-" || visited.has(key)) continue;
+        visited.add(key);
+        queue.push({ point: next, distance: distance + 1 });
+      }
+    }
+    return Number.POSITIVE_INFINITY;
+  };
   const distanceToRoom = room => {
     if (!position) return Number.POSITIVE_INFINITY;
     if (position.kind === "room") {
@@ -197,17 +232,9 @@ function strategicRoom(start, history) {
       if (passages.some(passage =>
         (passage.from === position.room && passage.to === room) ||
         (passage.to === position.room && passage.from === room))) return 0;
-      const from = roomDoors(position.room);
-      const to = roomDoors(room);
-      if (!from.length || !to.length) return Number.POSITIVE_INFINITY;
-      return Math.min(...from.flatMap(a => to.map(b =>
-        Math.abs(a.row - b.row) + Math.abs(a.column - b.column))));
+      return corridorDistance(roomDoors(position.room), room);
     }
-    const to = roomDoors(room);
-    if (!to.length) return Number.POSITIVE_INFINITY;
-    return Math.min(...to.map(door =>
-      Math.abs(position.row - door.corridor.row) +
-      Math.abs(position.column - door.corridor.column)));
+    return corridorDistance([position], room);
   };
   const support = room => state.solutions.filter(solution =>
     solution.suspect === pair.suspect && solution.weapon === pair.weapon && solution.room === room).length;
@@ -324,7 +351,7 @@ function validateAiAction(start, history, request, action, fallback) {
     // Movement remains on the deterministic fallback path. Accusations are
     // accepted only when the local solver proves the complete triple.
     if (action.type === "accusation-made" && validTriple(start, action)) {
-      const state = analyzeHistory(history);
+      const state = analyzed(history);
       const certain = state.knownSolution;
       if (certain && action.suspect === certain.suspect &&
         action.weapon === certain.weapon && action.room === certain.room) {
@@ -360,11 +387,12 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
     movementInstruction,
     "When a focusPair is provided, keep that suspect/weapon pair and vary the room to test it, unless the evidence proves one component is not possible.",
     "For accuse-or-end, return an accusation only when the local evidence proves one exact suspect/weapon/room triple; otherwise return {\"type\":\"turn-ended\"}. Confidence is not enough when any alternative triple remains.",
+    "If solutionSearchComplete is false, possibleSolutionCount is only a partial lower-bound-like search result; do not treat it as exact evidence.",
     "Use opponentPatterns as soft strategic evidence: repeated opponent suspect/weapon pairs or pairs tested across rooms can identify useful hypotheses to investigate. Never treat an opponent's suggestion as proof, because that player may hold one of the named cards.",
     "Movement paths are handled by a safe local engine, so do not return pawn-moved.",
     `Decision request: ${JSON.stringify(request)}`,
     `Safe fallback: ${JSON.stringify(fallback)}`,
-    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzeHistory(history).solutions.length, focusPair, opponentPatterns: opponentPatterns(start, history) })}`,
+    `Deduction evidence: ${JSON.stringify({ ...evidenceSummary(start, history), possibleSolutionCount: analyzed(history).solutions.length, solutionSearchComplete: analyzed(history).solutionsComplete, focusPair, opponentPatterns: opponentPatterns(start, history) })}`,
     ...(rejectedAction ? [
       `The previous accusation was rejected by the local solver because it is not a possible solution: ${JSON.stringify({ suspect: rejectedAction.suspect, weapon: rejectedAction.weapon, room: rejectedAction.room })}. Choose a different still-possible triple; do not repeat it.`,
     ] : []),
@@ -407,6 +435,7 @@ async function handle(message) {
   if (message.type === "init") {
     aiCalls = 0;
     focusPair = null;
+    analysisCache.clear();
     return safeHandle(message);
   }
   if (message.type !== "decision") return safeHandle(message);
@@ -426,9 +455,9 @@ async function handle(message) {
   }
 
   let fallback = await safeHandle(message, { preferredRoom });
-  if (request.kind === "make-suggestion") {
-    // The stable-pair policy applies even when the relay is unavailable or
-    // returns malformed/strategically inconsistent output.
+  if (fallback?.type === "suggestion-made") {
+    // The stable-pair policy applies to suggestions returned directly by the
+    // local take-turn path as well as explicit make-suggestion requests.
     fallback = enforceFocusPair(start, message.history ?? [], fallback);
   }
 
