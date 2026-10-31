@@ -147,8 +147,23 @@ function pairStillPossible(start, history, pair) {
     solution.suspect === pair.suspect && solution.weapon === pair.weapon);
 }
 
+function pairHasUntestedRoom(start, history, pair) {
+  if (!pairStillPossible(start, history, pair)) return false;
+  const state = analyzeHistory(history);
+  const tested = new Set(allEvents(history)
+    .filter(event => event.type === "suggestion-made" && event.suggester === start.you.seat &&
+      event.suggestion.suspect === pair.suspect && event.suggestion.weapon === pair.weapon)
+    .map(event => event.suggestion.room));
+  const candidateRooms = state.solutionsComplete
+    ? state.solutions
+      .filter(solution => solution.suspect === pair.suspect && solution.weapon === pair.weapon)
+      .map(solution => solution.room)
+    : (start.rooms ?? []);
+  return [...new Set(candidateRooms)].some(room => !tested.has(room));
+}
+
 function strategicRoom(start, history) {
-  const pair = pairStillPossible(start, history, focusPair)
+  const pair = pairHasUntestedRoom(start, history, focusPair)
     ? focusPair
     : historyFocusPair(start, history);
   if (!pair) return null;
@@ -180,7 +195,8 @@ function historyFocusPair(start, history) {
     if ((start.suspects ?? []).includes(pair.suspect) &&
         (start.weapons ?? []).includes(pair.weapon) &&
         !known.has(`suspect:${pair.suspect}`) &&
-        !known.has(`weapon:${pair.weapon}`)) return pair;
+        !known.has(`weapon:${pair.weapon}`) &&
+        pairHasUntestedRoom(start, history, pair)) return pair;
   }
   return null;
 }
@@ -232,7 +248,7 @@ function localRoomGoal(start, history) {
 
 function enforceFocusPair(start, history, fallback) {
   if (fallback?.type !== "suggestion-made") return fallback;
-  if (!pairStillPossible(start, history, focusPair)) focusPair = null;
+  if (!pairHasUntestedRoom(start, history, focusPair)) focusPair = null;
   if (!focusPair) {
     const proposed = { suspect: fallback.suspect, weapon: fallback.weapon };
     if (usablePair(start, history, proposed)) focusPair = proposed;
@@ -248,7 +264,7 @@ function validateAiAction(start, history, request, action, fallback) {
   if (request.kind === "make-suggestion") {
     const room = currentRoom(start, history);
     if (action.type === "suggestion-made" && validTriple(start, action) && action.room === room) {
-      if (!pairStillPossible(start, history, focusPair)) focusPair = null;
+      if (!pairHasUntestedRoom(start, history, focusPair)) focusPair = null;
       if (!focusPair) {
         const proposed = { suspect: action.suspect, weapon: action.weapon };
         if (usablePair(start, history, proposed)) focusPair = proposed;

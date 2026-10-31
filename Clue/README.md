@@ -321,3 +321,12 @@ npm run check
 - The agent was therefore close on the suspect but far on the weapon and room, and Baseline won by maintaining one pair and cycling rooms.
 - Follow-up fix: a repeated opponent pair tested across at least two suggestions or rooms now becomes the preferred focus when it remains locally possible. It is still treated as a hypothesis, never as proof.
 
+### Replay 27
+
+- This six-player replay used AIAgent in seat 6. The solution was Mr. Mustard, Lead Pipe, and Lounge; Baseline Bo 4 won on turn 13.
+- AIAgent received only two turns before the match ended: it entered Ballroom on turn 4 and suggested Green with Candlestick, which was refuted by Baseline Bo 3; it entered Conservatory on turn 10 and suggested Green with Lead Pipe, which was refuted by Baseline Bo 2.
+- Both movements were legal and productive room entries. The local evidence still contained 31 possible solution triples at the end of AIAgent's second turn, so the refusal to accuse was correct and protected against a false elimination.
+- Baseline Bo 4 had three investigation turns, used the Conservatory-to-Lounge secret passage, kept Mustard/Lead Pipe stable, and received the unrefuted Lounge suggestion that proved the case. AIAgent had no third turn in which to gather comparable room evidence.
+- The relay used all four allowed calls (suggestion and finish on each of AIAgent's two turns). The relay's Green/Lead Pipe choice was legal and locally possible at that time; the later Green card response eliminated it, but it did not create certainty for another triple.
+- Diagnosis: this was a six-player turn-frequency and race-to-solve loss, not a deduction, movement, room-targeting, or accusation-validation bug. No code change was made because forcing an accusation from 31 candidates would be an unreliable guess.
+
