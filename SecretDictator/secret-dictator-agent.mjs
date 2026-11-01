@@ -34,6 +34,55 @@ function team(start) {
   ]);
 }
 
+function policyLetter(policy) {
+  return policy === "fascist" ? "F" : "L";
+}
+
+function policyLetters(policies) {
+  return (policies ?? []).map(policyLetter).join("");
+}
+
+function sortedLetters(value) {
+  return [...String(value ?? "")].sort().join("");
+}
+
+function parseCardClaim(text) {
+  const value = String(text ?? "");
+  const claim = {};
+  const drew = value.match(/\bdrew\s+([FL]{3})\b/i);
+  const received = value.match(/\breceived\s+([FL]{2})\b/i);
+  const passed = value.match(/\bpassed\s+([FL]{2})\b/i);
+  const discarded = value.match(/\bdiscarded\s+([FL])\b/i);
+  const enacted = value.match(/\benacted\s+(?:the\s+)?([FL])\b/i);
+  if (drew) claim.drawn = drew[1].toUpperCase();
+  if (received) claim.received = received[1].toUpperCase();
+  if (passed) claim.passed = passed[1].toUpperCase();
+  if (discarded) claim.discarded = discarded[1].toUpperCase();
+  if (enacted) claim.enacted = enacted[1].toUpperCase();
+  return claim;
+}
+
+function claimIsConsistent(claim, enactedPolicy) {
+  const enacted = enactedPolicy ? policyLetter(enactedPolicy) : null;
+  if (claim.drawn && claim.discarded && claim.passed &&
+      sortedLetters(claim.drawn) !== sortedLetters(claim.discarded + claim.passed)) return false;
+  if (claim.drawn && claim.discarded && !claim.drawn.includes(claim.discarded)) return false;
+  if (claim.received && claim.enacted && !claim.received.includes(claim.enacted)) return false;
+  if (claim.passed && enacted && !claim.passed.includes(enacted)) return false;
+  if (claim.enacted && enacted && claim.enacted !== enacted) return false;
+  return true;
+}
+
+function claimDescription(round, claim) {
+  const parts = [];
+  if (claim.drawn) parts.push(`I drew ${claim.drawn}`);
+  if (claim.received) parts.push(`I received ${claim.received}`);
+  if (claim.discarded) parts.push(`discarded ${claim.discarded}`);
+  if (claim.passed) parts.push(`passed ${claim.passed}`);
+  if (claim.enacted) parts.push(`enacted ${claim.enacted}`);
+  return `Round ${round}: ${parts.join(", ")}.`;
+}
+
 function analyze(history) {
   const es = events(history);
   const start = setup(history);
@@ -48,10 +97,12 @@ function analyze(history) {
     dictator: isDictator(start),
     allies: team(start),
     suspicion: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
+    trust: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
     knownLiberals: new Set(),
     knownFascistsPublic: new Set(start.knownFascists ?? []),
     confirmedNotDictator: new Set(),
     governmentVotes: new Map(),
+    roundPolicies: new Map(),
     currentGovernment: null,
     liberalPolicies: 0,
     fascistPolicies: 0,
@@ -66,10 +117,35 @@ function analyze(history) {
     vetoRejected: false,
     investigated: new Set(),
     lastPolicy: null,
+    lastPolicyRound: null,
+    lastOwnClaim: null,
+    pendingPresidentHand: null,
+    pendingPresidentDiscard: null,
+    pendingChancellorHand: null,
   };
 
   const addSuspicion = (seat, amount) => {
     if (seat && seat !== state.you.seat && seat in state.suspicion) state.suspicion[seat] += amount;
+  };
+  const addTrust = (seat, amount) => {
+    if (seat && seat !== state.you.seat && seat in state.trust) state.trust[seat] += amount;
+  };
+  const rememberStatement = (seat, text, round) => {
+    if (!seat || !text || !(seat in state.suspicion)) return;
+    const claim = parseCardClaim(text);
+    const investigation = String(text).match(/\binvestigated\s+(seat-[0-9]+)\s*:\s*(liberal|fascist)/i);
+    if (investigation) {
+      const target = investigation[1];
+      const result = investigation[2].toLowerCase();
+      const contradictsKnownFact = (result === "liberal" && state.knownFascistsPublic.has(target)) ||
+        (result === "fascist" && state.knownLiberals.has(target));
+      if (contradictsKnownFact || (target === state.you.seat && state.fascist && result === "liberal")) {
+        addSuspicion(seat, 3);
+      }
+    }
+    if (!Object.keys(claim).length) return;
+    const enacted = state.roundPolicies.get(round);
+    addTrust(seat, claimIsConsistent(claim, enacted) ? 1 : -1.5);
   };
   const voteArray = (event) => event.votes ?? event.ballots ?? event.voteResults ?? [];
   for (const event of es) {
@@ -128,8 +204,10 @@ function analyze(history) {
       state.electionTracker = event.electionTracker ?? state.electionTracker;
     } else if (event.type === "policy-enacted") {
       state.lastPolicy = event.policy;
+      state.lastPolicyRound = event.round ?? null;
       if (event.policy === "liberal") state.liberalPolicies += 1;
       if (event.policy === "fascist") state.fascistPolicies += 1;
+      state.roundPolicies.set(event.round ?? es.indexOf(event), event.policy);
       // Chaos has no accountable government.  For an ordinary government,
       // use the seats named on the public event rather than stale state.
       if (event.source !== "chaos") {
@@ -149,11 +227,42 @@ function analyze(history) {
       state.presidentPolicies = [];
       state.chancellorPolicies = [];
       state.vetoRejected = false;
+      const round = event.round ?? es.indexOf(event);
+      const enactedPresident = event.president ?? state.lastPresident ?? state.currentGovernment?.president ?? state.president;
+      const enactedChancellor = event.chancellor ?? state.lastChancellor ?? state.currentGovernment?.chancellor;
+      if (enactedPresident === state.you.seat && state.pendingPresidentHand) {
+        const claim = {
+          drawn: policyLetters(state.pendingPresidentHand),
+          discarded: state.pendingPresidentDiscard,
+          passed: policyLetters(state.pendingPresidentHand),
+        };
+        if (state.pendingPresidentDiscard) {
+          const remaining = [...state.pendingPresidentHand];
+          const index = remaining.indexOf(state.pendingPresidentDiscard === "F" ? "fascist" : "liberal");
+          if (index >= 0) remaining.splice(index, 1);
+          claim.passed = policyLetters(remaining);
+        }
+        state.lastOwnClaim = { round, text: claimDescription(round, claim) };
+      } else if (enactedChancellor === state.you.seat && state.pendingChancellorHand) {
+        const claim = {
+          received: policyLetters(state.pendingChancellorHand),
+          enacted: policyLetter(event.policy),
+        };
+        state.lastOwnClaim = { round, text: claimDescription(round, claim) };
+      }
+      state.pendingPresidentHand = null;
+      state.pendingPresidentDiscard = null;
+      state.pendingChancellorHand = null;
     } else if (event.type === "president-cards-drawn" && event.policies) {
       state.presidentPolicies = [...event.policies];
+      if (event.president === state.you.seat) state.pendingPresidentHand = [...event.policies];
     } else if (event.type === "chancellor-policies-received" && event.policies) {
       state.chancellorPolicies = [...event.policies];
       state.vetoRejected = false;
+      if (event.chancellor === state.you.seat) state.pendingChancellorHand = [...event.policies];
+    } else if (event.type === "president-policy-discarded" || event.type === "president-discarded") {
+      const policy = event.policy ?? event.discarded?.policy;
+      if (event.president === state.you.seat && policy) state.pendingPresidentDiscard = policyLetter(policy);
     } else if (event.type === "veto-responded") {
       state.vetoRejected = !event.accepted;
     } else if (event.type === "loyalty-investigated") {
@@ -172,15 +281,15 @@ function analyze(history) {
     } else if (event.type === "chancellor-confirmed-not-dictator") {
       state.confirmedNotDictator.add(event.seat);
       state.suspicion[event.seat] = Math.min(state.suspicion[event.seat], -2);
-    } else if (event.type === "president-policy-discarded") {
-      // The event is private when the agent is President. Remembering it
-      // prevents stale hand state and lets the agent explain its own claim.
-      state.lastPresidentDiscard = event.policy ?? null;
     } else if (event.type === "player-executed") {
       state.alive = state.alive.filter((seat) => seat !== event.target);
       if (event.target && state.allies.has(event.target)) addSuspicion(event.target, -20);
     } else if (event.type === "special-election-called") {
       addSuspicion(event.presidentCandidate ?? event.target, 0.3);
+    } else if (event.type === "player-statement") {
+      rememberStatement(event.from, event.text, event.round ?? state.lastPolicyRound);
+    } else if (event.type === "discussion-contributed" && event.statement) {
+      rememberStatement(event.seat ?? event.from, event.statement, event.round ?? state.lastPolicyRound);
     }
   }
   return state;
@@ -197,7 +306,8 @@ function legalTargets(state, kind) {
 
 function ranked(state, candidates, descending = true) {
   return [...candidates].sort((a, b) => {
-    const delta = state.suspicion[b] - state.suspicion[a];
+    const score = (seat) => state.suspicion[seat] - (state.trust[seat] ?? 0) * 1.2;
+    const delta = score(b) - score(a);
     return (descending ? delta : -delta) || state.seats.indexOf(a) - state.seats.indexOf(b);
   });
 }
@@ -205,8 +315,20 @@ function ranked(state, candidates, descending = true) {
 function bestTarget(state, kind) {
   const candidates = legalTargets(state, kind);
   if (!candidates.length) throw new Error("no legal player target");
-  const allies = candidates.filter((seat) => state.allies.has(seat));
-  if (state.fascist && allies.length) return ranked(state, allies, false)[0];
+  if (state.fascist && (kind === "nominate-chancellor" || kind === "special-election")) {
+    const allies = candidates.filter((seat) => state.allies.has(seat));
+    if (allies.length) return ranked(state, allies, false)[0];
+    // The Dictator has no starting ally information. In that role, the best
+    // proxy for a Fascist teammate is the player with the strongest public
+    // Fascist evidence, especially once three Fascist policies are enacted.
+    const investigatedFascists = candidates.filter((seat) => state.knownFascistsPublic.has(seat));
+    if (investigatedFascists.length) return ranked(state, investigatedFascists, false)[0];
+    return ranked(state, candidates, true)[0];
+  }
+  if (state.fascist && (kind === "investigate-player" || kind === "execute-player")) {
+    const nonAllies = candidates.filter((seat) => !state.allies.has(seat));
+    if (nonAllies.length) return ranked(state, nonAllies, false)[0];
+  }
   const safe = candidates.filter((seat) => !state.knownFascistsPublic.has(seat));
   return ranked(state, safe.length ? safe : candidates, !state.fascist)[0];
 }
@@ -217,6 +339,7 @@ function nominationStatement(state, target) {
 }
 
 function discussionStatement(state) {
+  if (state.lastOwnClaim?.round === state.lastPolicyRound) return state.lastOwnClaim.text;
   if (state.lastPolicy === "fascist") return state.fascist
     ? "I support this government; we need to keep the table moving."
     : "A Fascist policy needs accountability. I am tracking both members of that government.";
@@ -231,9 +354,12 @@ function fallbackDecision(state, decision) {
   }
   if (decision.kind === "vote") {
     const nominee = state.nominatedChancellor ?? decision.chancellor ?? decision.target;
-    const dangerous = state.fascistPolicies >= 3 && !state.allies.has(nominee) && state.suspicion[nominee] >= 2;
+    const adjustedSuspicion = state.suspicion[nominee] - (state.trust[nominee] ?? 0) * 1.2;
+    const dangerous = state.fascistPolicies >= 3 && !state.allies.has(nominee) && adjustedSuspicion >= 2;
     const confirmedFascist = state.knownFascistsPublic.has(nominee);
-    const trusted = state.allies.has(nominee) || state.knownLiberals.has(nominee) || state.suspicion[nominee] <= 0;
+    const trusted = state.allies.has(nominee) || state.knownLiberals.has(nominee) ||
+      ((state.trust[nominee] ?? 0) >= 1 && adjustedSuspicion < 2) || adjustedSuspicion <= 0;
+    if (state.dictator) return { type: "vote-cast", vote: "yes" };
     if (!state.fascist && (confirmedFascist || dangerous)) return { type: "vote-cast", vote: "no" };
     return { type: "vote-cast", vote: state.fascist ? (trusted || state.fascistPolicies < 3 ? "yes" : "no") : (dangerous ? "no" : (trusted ? "yes" : "no")) };
   }
