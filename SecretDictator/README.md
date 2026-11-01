@@ -100,3 +100,20 @@ This replay led to the card-claim discussion system.
 
 This replay led to the separate Dictator nomination, voting, and executive
 targeting strategy.
+
+### Replay 4 — Fascist victory with three AIAgents
+
+`crucible-secret-dictator-0ad4d74b-a0a0-4e41-af12-eadfb1838520.json`
+
+- The AIAgents were the Dictator in `seat-3` and Fascists in `seat-4` and
+  `seat-5`.
+- They enacted three Fascist policies in the first three governments and then
+  used a special election to put the Dictator in position to win.
+- The Fascist agents coordinated correctly: `seat-4` nominated `seat-5`, and
+  `seat-5` later nominated the Dictator.
+- The Champion Liberals rejected some governments, but eventually approved a
+  government that elected the Dictator as Chancellor.
+
+This replay confirms that the Fascist coalition logic is working. Comparing it
+with Replay 3 showed that Liberal nominations and special elections needed to
+prefer trusted players rather than suspicious players.

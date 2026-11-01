@@ -96,8 +96,10 @@ function analyze(history) {
     fascist: isFascist(start),
     dictator: isDictator(start),
     allies: team(start),
+    knownDictator: start.knownDictator ?? null,
     suspicion: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
     trust: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
+    fascistParticipation: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
     knownLiberals: new Set(),
     knownFascistsPublic: new Set(start.knownFascists ?? []),
     confirmedNotDictator: new Set(),
@@ -129,6 +131,9 @@ function analyze(history) {
   };
   const addTrust = (seat, amount) => {
     if (seat && seat !== state.you.seat && seat in state.trust) state.trust[seat] += amount;
+  };
+  const addFascistParticipation = (seat) => {
+    if (seat && seat in state.fascistParticipation) state.fascistParticipation[seat] += 1;
   };
   const rememberStatement = (seat, text, round) => {
     if (!seat || !text || !(seat in state.suspicion)) return;
@@ -215,6 +220,10 @@ function analyze(history) {
         const chancellor = event.chancellor ?? state.lastChancellor;
         const key = `${event.round ?? es.indexOf(event)}:${president}:${chancellor}`;
         const voteRecord = state.governmentVotes.get(key);
+        if (event.policy === "fascist") {
+          addFascistParticipation(president);
+          addFascistParticipation(chancellor);
+        }
         if (president) addSuspicion(president, event.policy === "fascist" ? 1.2 : -0.35);
         if (chancellor) addSuspicion(chancellor, event.policy === "fascist" ? 1.5 : -0.4);
         if (voteRecord) {
@@ -316,6 +325,9 @@ function bestTarget(state, kind) {
   const candidates = legalTargets(state, kind);
   if (!candidates.length) throw new Error("no legal player target");
   if (state.fascist && (kind === "nominate-chancellor" || kind === "special-election")) {
+    if (state.fascistPolicies >= 3 && state.knownDictator && candidates.includes(state.knownDictator)) {
+      return state.knownDictator;
+    }
     const allies = candidates.filter((seat) => state.allies.has(seat));
     if (allies.length) return ranked(state, allies, false)[0];
     // The Dictator has no starting ally information. In that role, the best
@@ -330,7 +342,11 @@ function bestTarget(state, kind) {
     if (nonAllies.length) return ranked(state, nonAllies, false)[0];
   }
   const safe = candidates.filter((seat) => !state.knownFascistsPublic.has(seat));
-  return ranked(state, safe.length ? safe : candidates, !state.fascist)[0];
+  const pool = safe.length ? safe : candidates;
+  // Liberals want trusted players for governments and special elections, but
+  // want the most suspicious player for investigations and executions.
+  const highRiskAction = kind === "investigate-player" || kind === "execute-player";
+  return ranked(state, pool, highRiskAction)[0];
 }
 
 function nominationStatement(state, target) {
@@ -357,10 +373,12 @@ function fallbackDecision(state, decision) {
     const adjustedSuspicion = state.suspicion[nominee] - (state.trust[nominee] ?? 0) * 1.2;
     const dangerous = state.fascistPolicies >= 3 && !state.allies.has(nominee) && adjustedSuspicion >= 2;
     const confirmedFascist = state.knownFascistsPublic.has(nominee);
+    const lateFascistAssociation = state.fascistPolicies >= 2 &&
+      (state.fascistParticipation[nominee] ?? 0) > 0 && !state.knownLiberals.has(nominee);
     const trusted = state.allies.has(nominee) || state.knownLiberals.has(nominee) ||
       ((state.trust[nominee] ?? 0) >= 1 && adjustedSuspicion < 2) || adjustedSuspicion <= 0;
     if (state.dictator) return { type: "vote-cast", vote: "yes" };
-    if (!state.fascist && (confirmedFascist || dangerous)) return { type: "vote-cast", vote: "no" };
+    if (!state.fascist && (confirmedFascist || dangerous || lateFascistAssociation)) return { type: "vote-cast", vote: "no" };
     return { type: "vote-cast", vote: state.fascist ? (trusted || state.fascistPolicies < 3 ? "yes" : "no") : (dangerous ? "no" : (trusted ? "yes" : "no")) };
   }
   if (decision.kind === "president-discard") {
