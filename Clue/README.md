@@ -6,28 +6,9 @@ This is a Clue-playing agent for the Arenova Agent Challenge. It uses an AI help
 
 ## How the agent plays
 
-Reads the setup, hand, board, positions, dice, and visible history.
-Tracks the current position of every suspect.
-Moves through legal corridor squares without walking through occupied squares.
-Uses a legal secret passage when starting in a room with one.
-Suggests the current room, choosing suspect and weapon cards not known to be in its hand.
-Shows a matching card when it is asked to refute a suggestion.
-Builds possible solution triples from hand sizes, known cards, passed players, and refutations.
-Accuses only when the local solver proves the unique solution; otherwise it keeps gathering evidence and making legal suggestions.
-Reviews opponents’ repeated suggestions as soft strategic evidence, while never treating another player’s guess as proof.
-Follows the strongest Baseline pattern: choose one suspect/weapon pair with broad remaining room support, keep it stable, and vary the room until the solution is uniquely determined.
-Prefers high-information suspect/weapon pairs and avoids repeating pairs in the same room.
-The AI relay is called only a limited number of times per match and is given only a compact summary of the visible setup and history. Calls are reserved for suggestion and accusation decisions; room selection, movement paths, and card refutation stay on the local legal engine so the model cannot waste calls or invent an invalid path.
+The agent reads the setup, hand, board, dice, positions, and visible history. It tracks every suspect, moves legally through corridors or secret passages, enters rooms to make suggestions, and shows a matching card when needed. It uses hand sizes, known cards, passed players, refutations, and repeated opponent suggestions to narrow down the hidden solution. It usually keeps one promising suspect/weapon pair and tests it in different rooms, choosing high-information suggestions instead of repeating the same room.
 
-The current version also asks the model for a room goal during movement. The local engine converts that goal into a legal path and falls back to its normal route if the goal is unreachable. The prompt includes a concise evidence summary and the number of locally possible solutions. Accusations are certainty-gated: the local solver must identify exactly one complete suspect/weapon/room triple. The AI cannot override that gate with confidence, and the agent continues making legal suggestions while multiple triples remain possible.
-
-Incomplete deduction results caused by the solver time limit are never treated as evidence for an accusation.
-
-If the model proposes an accusation that the local solver rejects, the wrapper makes one recovery request asking for a different possible triple. A second invalid or under-confident response still falls back to `turn-ended`.
-
-After selecting a useful suspect/weapon pair, the agent keeps that pair as a focus and tests it across different rooms. It changes the pair only when visible evidence rules out one of its cards. Once a card is shown, it is permanently excluded from future solution candidates, and the agent selects a replacement pair. If the local solver identifies the unique solution, the next decision immediately makes the accusation. An unrefuted suggestion by another player is not treated as conclusive because that player may privately hold one of the suggested cards. This mirrors the strongest pattern observed in the Baseline Bo replays while preserving the AI layer.
-
-The deduction search has a small fixed time budget. If it reaches that limit, the agent does not accuse from partial results; it continues with ordinary legal play.
+The AI relay helps with suggestions, accusations, and room goals, but the local engine handles movement and card responses so every action stays legal. The local solver checks any accusation, and the AI cannot override it. Incomplete searches, invalid model responses, or unsupported accusations fall back to safe legal play; the agent continues gathering evidence until one complete solution is supported.
 
 ## Files
 

@@ -8,12 +8,7 @@ The agent reads one JSON message per line from standard input and writes one JSO
 
 ## How the agent plays
 
-1. Rebuilds the board from the visible history.
-2. Identifies whether it is red or yellow.
-3. Plays an immediate winning move when possible.
-4. Blocks an opponent’s immediate winning move.
-5. Searches future moves with minimax and alpha-beta pruning.
-6. Prefers the center because it creates more possible lines.
+The agent rebuilds the board from the visible game history and identifies whether it is playing red or yellow. It first looks for a move that wins immediately, then checks whether it needs to block the opponent. If neither applies, it looks ahead at possible future moves using minimax and alpha-beta pruning. It generally prefers the center columns because they create more opportunities to make four-in-a-row.
 
 ## Files
 
