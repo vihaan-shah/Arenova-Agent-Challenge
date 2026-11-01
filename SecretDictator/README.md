@@ -91,13 +91,3 @@ This replay led to the card-claim discussion system.
 
 This replay led to the separate Dictator nomination, voting, and executive
 targeting strategy.
-
-## Overall lessons
-
-- Legal responses and policy handling have been reliable across the replays.
-- Exact card claims are more useful than generic discussion.
-- A card claim should increase trust only when it matches the public result.
-- Ordinary Fascists should use their known allies directly.
-- The Dictator needs to infer allies from public Fascist behavior.
-- Liberals should connect a Fascist policy to the whole government and its
-  approving voters instead of blaming only the Chancellor.
