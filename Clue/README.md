@@ -2,22 +2,20 @@
 
 ## What this is
 
-This is an AI-assisted Clue player for the Arenova Agent Challenge.
-
-The agent reads one JSON message per line from standard input and writes one JSON response per line. It uses the Arenova local AI relay for strategic reasoning, with a deterministic legality-safe fallback for movement, deduction, card refutation, malformed model responses, and relay failures.
+This is a Clue-playing agent for the Arenova Agent Challenge. It uses an AI helper for ideas, but it also has its own rules checker so it does not make illegal moves.
 
 ## How the agent plays
 
-1. Tracks positions, dice, hands, hand sizes, suggestions, refutations, and visible cards.
-2. Moves through legal corridor squares and uses secret passages when useful.
-3. Enters reachable rooms quickly so it can make suggestions before the match ends.
-4. Keeps a promising suspect/weapon pair stable while testing candidate rooms.
-5. Uses opponent suggestions as soft evidence and uses unrefuted suggestions as ownership-or-solution constraints.
-6. Chooses suggestions by remaining candidate support and expected information gain.
-7. Selects refutation cards that reveal as little solution information as possible.
-8. Accuses only when the local solver proves a safe solution; the AI relay cannot override that protection.
+1. Keeps track of where the players are and which cards have been seen.
+2. Moves legally through the hallways and uses secret passages when helpful.
+3. Tries to get into rooms quickly so it has time to make suggestions.
+4. Usually keeps the same suspect and weapon while trying them in different rooms.
+5. Uses suggestions and revealed cards to narrow down the hidden solution.
+6. Picks suggestions that are likely to teach it something useful.
+7. Chooses carefully when it has more than one card that could refute a suggestion.
+8. Accuses only when its own checks support one clear solution.
 
-The relay is reserved for suggestion and accusation decisions. Movement paths and card responses remain local and are always validated. Solver results are cached per visible history, and incomplete searches are never treated as proof.
+The AI helps choose suggestions and accusations. The local part of the agent handles movement and card responses, checks that every answer follows the rules, and takes over if the AI is unavailable or gives a bad answer. If the evidence is incomplete, the agent waits instead of making a reckless accusation.
 
 ## Files
 
