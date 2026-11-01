@@ -51,69 +51,43 @@ by the player API.
 
 ## Replay summary
 
-The recorded replays show that the agent is protocol-safe and can win from
-both factions, but the Dictator needs a different strategy from an ordinary
-Fascist. The most useful improvement was replacing generic discussion with
-specific card claims. The latest improvement makes the Dictator seek likely
-Fascist candidates instead of automatically choosing the least-suspicious
-player.
+The latest two evaluation runs show that the agent is protocol-safe and can
+coordinate effectively as the Fascist team, while Liberal play still needs
+more caution around late-game governments.
 
-## Recorded replays
+### What the agent does well
 
-### Replay 1 — Fascist victory
+- Ordinary Fascists use their known allies and can move policies quickly.
+- Fascists coordinate special elections and can place the Dictator in a
+  position to win.
+- The Dictator can use public Fascist evidence even though it starts without
+  ally information.
+- Presidents and Chancellors report exact card information, including forced
+  outcomes such as `FFF -> discard F -> pass FF`.
+- All observed actions were legal and the agent did not crash.
 
-`crucible-secret-dictator-9b48fc4f-43bf-4751-97a0-e3a0f3a15c83.json`
+### What the agent needs to improve
 
-- The AIAgent was `seat-5`, an ordinary Fascist.
-- The Dictator was `seat-3`; the other Fascist was `seat-4`.
-- The Fascists won when the Dictator became Chancellor after three Fascist
-  policies.
-- The agent correctly used its known Fascist team information and all of its
-  actions were legal.
+- Liberals previously nominated or special-elected suspicious Fascists after
+  two or three Fascist policies.
+- Liberal agents approved too many governments instead of rejecting a
+  candidate who had already participated in a Fascist government.
+- After the third Fascist policy, a Liberal special election must prefer a
+  trusted Liberal; choosing a suspicious player can immediately hand them the
+  Presidency and the Dictator win.
+- Discussion claims are useful, but a truthful card claim should not erase all
+  suspicion from a player who repeatedly appears in Fascist governments.
 
-### Replay 2 — Liberal victory
+### Latest evaluation runs
 
-`crucible-secret-dictator-6e97ea4b-6a01-47b6-8365-2de183389729.json`
+- `crucible-secret-dictator-e3d51c11-ab72-4ccc-9bcd-12fa70f18669.json` tested
+  two AIAgents as Liberals. The Fascists won after the Liberal President chose
+  a suspicious player for a special election, allowing that player to elect
+  the Dictator.
+- `crucible-secret-dictator-0ad4d74b-a0a0-4e41-af12-eadfb1838520.json` tested
+  three AIAgents as the Fascist team. They enacted three Fascist policies and
+  successfully elected the Dictator as Chancellor.
 
-- Both AIAgents were Liberals in `seat-1` and `seat-7`.
-- The Liberal team won with five Liberal policies and one Fascist policy.
-- `seat-1` correctly discarded a Fascist from an `FFF` hand, but its original
-  discussion statement did not explain that the Fascist policy was forced.
-- `seat-7` correctly chose Liberal cards from mixed Chancellor hands.
-- Champion bots gave more specific card reports, although they sometimes made
-  overconfident accusations.
-
-This replay led to the card-claim discussion system.
-
-### Replay 3 — Dictator executed
-
-`crucible-secret-dictator-3b9f72bf-0bc0-4580-abbf-98389bd67737.json`
-
-- `seat-1` was an AIAgent Liberal and won.
-- `seat-7` was an AIAgent Dictator and was executed.
-- The Fascists reached five Fascist policies but never elected the Dictator as
-  Chancellor.
-- The Dictator did not know its starting Fascist allies and originally chose a
-  low-suspicion Chancellor candidate, which usually favors Liberals.
-- The Champion bots identified the Dictator through investigation and later
-  executed it.
-
-This replay led to the separate Dictator nomination, voting, and executive
-targeting strategy.
-
-### Replay 4 — Fascist victory with three AIAgents
-
-`crucible-secret-dictator-0ad4d74b-a0a0-4e41-af12-eadfb1838520.json`
-
-- The AIAgents were the Dictator in `seat-3` and Fascists in `seat-4` and
-  `seat-5`.
-- They enacted three Fascist policies in the first three governments and then
-  used a special election to put the Dictator in position to win.
-- The Fascist agents coordinated correctly: `seat-4` nominated `seat-5`, and
-  `seat-5` later nominated the Dictator.
-- The Champion Liberals rejected some governments, but eventually approved a
-  government that elected the Dictator as Chancellor.
-
-This replay confirms that the Fascist coalition logic is working. Comparing it
-with Replay 3 showed that Liberal nominations and special elections needed to
-prefer trusted players rather than suspicious players.
+Future replay results should be added to this latest-evaluation section and
+used to update the strengths and weaknesses above. Older replay-by-replay
+records are intentionally omitted so this summary reflects current behavior.
