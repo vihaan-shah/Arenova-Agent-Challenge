@@ -3,36 +3,45 @@
 ## What this is
 
 This is a Secret Dictator player for the Arenova Agent Challenge. It follows
-the seven-player Secret Hitler rules used by the game and keeps separate
+the seven-player Secret Hitler rules used by the game and uses separate
 strategies for Liberals, ordinary Fascists, and the Dictator.
 
 The agent reads one JSON message per line from standard input and writes one
-JSON response per line. It always returns a legal response shape for the
-decision it received.
+JSON response per line. It is deterministic and includes its own legality-safe
+fallback, so it does not depend on a network service or an external model.
 
 ## How the agent plays
 
-1. Rebuilds the public game state from the visible history for every decision.
-2. Tracks each President–Chancellor pair and connects revealed votes to that
-   exact government.
-3. Raises suspicion when a government produces a Fascist policy, especially
-   for the President, Chancellor, and yes-voters who approved it.
-4. Uses investigations, known Fascists, and non-Dictator confirmations as
-   stronger evidence than ordinary voting patterns.
-5. Reads card claims in discussion. Consistent claims such as “I drew FFF,
-   discarded F, and passed FF” increase trust; contradictions reduce trust.
-6. As a Liberal, chooses safer governments, discards Fascist policies,
-   investigates or executes suspicious players, and requests a veto when
-   necessary.
-7. As an ordinary Fascist, coordinates with known allies and tries to elect
-   the Dictator after three Fascist policies.
-8. As the Dictator, uses public Fascist evidence to find likely Fascist allies,
-   because the Dictator does not know the Fascist team at game start.
-9. Reports its own card information during discussion so other players can
-   evaluate the government fairly.
+Rebuilds the public game state from the visible history for every decision.
+Tracks each President–Chancellor pair and connects revealed votes to that exact
+government.
+Raises suspicion when a government produces a Fascist policy, especially for
+the President, Chancellor, and yes-voters who approved it.
+Uses investigations, known Fascists, and `chancellor-confirmed-not-dictator` as
+stronger evidence than ordinary voting patterns.
+Reads card claims in discussion. A consistent claim such as “I drew FFF,
+discarded F, and passed FF” increases trust; a claim that contradicts the
+public result lowers trust.
+Reports its own private card information so other players can judge whether a
+Fascist policy was forced or chosen.
 
-The agent is deterministic. It does not need a network service or a model call;
-the role strategy, evidence tracking, and legal fallback all run locally.
+As a Liberal, the agent prefers safer governments, discards Fascist cards,
+investigates or executes the most suspicious legal target, and requests a veto
+when a Fascist policy would be dangerous. It does not treat one suspicious vote
+as proof; it combines voting history, policy outcomes, investigations, and
+discussion claims.
+
+As an ordinary Fascist, it uses the known Fascist team, supports governments
+that advance the Fascist side, and tries to elect the Dictator after three
+Fascist policies. As the Dictator, it starts without ally information, so it
+looks for players with the strongest public Fascist evidence instead of always
+choosing the safest-looking player.
+
+The local strategy handles every decision kind, including nominations, votes,
+policy cards, vetoes, investigations, special elections, executions, and table
+talk. It keeps targets legal, respects term limits, avoids known allies when a
+Fascist uses an executive power, and returns only the response fields allowed
+by the player API.
 
 ## Files
 
