@@ -6,6 +6,8 @@ let requestsHandled = 0;
 // Six-player histories need more search time before the accusation deadline;
 // incomplete results are still never treated as proof.
 const DEDUCTION_BUDGET_MS = 1000;
+const MAX_DEDUCTION_BUDGET_MS = 1800;
+const snapshotCache = new WeakMap();
 
 function events(history) {
   return history.map(({ event }) => event);
@@ -66,10 +68,12 @@ function solutionIsPossible(start, all, shownToMe, candidate, deadline) {
   const suggestions = all.filter(event => event.type === "suggestion-made");
   for (const event of suggestions) {
     const cards = tripleFor(start, event.suggestion);
-    // An unrefuted suggestion by another player is not conclusive: the
-    // suggester may privately hold one of the three cards and does not refute
-    // their own suggestion. Only our own unrefuted suggestion is conclusive,
-    // and only when none of its cards is already known to be in our hand.
+    // An unrefuted suggestion by another player is not conclusive by itself:
+    // the suggester may privately hold one of the three cards and does not
+    // refute their own suggestion. We still retain the useful constraint that
+    // at least one card belongs to that suggester or to the solution.
+    // Only our own unrefuted suggestion is conclusive, and only when none of
+    // its cards is already known to be in our hand.
     if (event.refuter === null && event.suggester === me &&
       !cards.some(card => shownToMe.has(card)) && !sameTriple(cards, candidate)) return false;
     if (event.refuter && event.passedSeats?.some(passed => cards.some(card => owners.get(card) === passed))) {
@@ -105,10 +109,22 @@ function solutionIsPossible(start, all, shownToMe, candidate, deadline) {
     .filter(event => event.refuter)
     .map(event => ({ owner: event.refuter, cards: tripleFor(start, event.suggestion) }));
 
+  const unrefutedNeeds = suggestions
+    .filter(event => event.refuter === null && event.suggester !== me)
+    .map(event => ({
+      owners: [event.suggester, solution],
+      cards: tripleFor(start, event.suggestion),
+    }));
+
   function constraintsStillPossible(assigned, remaining) {
     for (const need of refutationNeeds) {
       if (need.cards.some(card => assigned.get(card) === need.owner)) continue;
       if (!need.cards.some(card => remaining.has(card) && remaining.get(card).includes(need.owner))) return false;
+    }
+    for (const need of unrefutedNeeds) {
+      if (need.cards.some(card => need.owners.includes(assigned.get(card)))) continue;
+      if (!need.cards.some(card => remaining.has(card) &&
+          need.owners.some(owner => remaining.get(card).includes(owner)))) return false;
     }
     for (const [owner, capacity] of capacities) {
       let used = 0;
@@ -126,6 +142,7 @@ function solutionIsPossible(start, all, shownToMe, candidate, deadline) {
     if (!constraintsStillPossible(assigned, remaining)) return false;
     if (remaining.size === 0) {
       return refutationNeeds.every(need => need.cards.some(card => assigned.get(card) === need.owner)) &&
+        unrefutedNeeds.every(need => need.cards.some(card => need.owners.includes(assigned.get(card)))) &&
         [...capacities].every(([owner, capacity]) => (counts.get(owner) ?? 0) === Number(capacity));
     }
 
@@ -155,7 +172,8 @@ function solutionIsPossible(start, all, shownToMe, candidate, deadline) {
 
 function inferSolutions(start, all, shownToMe) {
   const candidates = [];
-  const deadline = Date.now() + DEDUCTION_BUDGET_MS;
+  const complexityBonus = Math.min(800, Math.max(0, all.length - 40) * 10);
+  const deadline = Date.now() + Math.min(MAX_DEDUCTION_BUDGET_MS, DEDUCTION_BUDGET_MS + complexityBonus);
   for (const suspect of start.suspects ?? []) {
     for (const weapon of start.weapons ?? []) {
       for (const room of start.rooms ?? []) {
@@ -197,6 +215,8 @@ function raceAwareSolution(start, all, inference) {
 }
 
 function snapshot(history) {
+  const cached = snapshotCache.get(history);
+  if (cached) return cached;
   const all = events(history);
   const start = setupFrom(history);
   if (!start) throw new Error("missing game-started event");
@@ -235,7 +255,7 @@ function snapshot(history) {
     }
   }
   const inference = inferSolutions(start, all, shownToMe);
-  return {
+  const state = {
     start,
     all,
     positions,
@@ -247,6 +267,8 @@ function snapshot(history) {
     solutionsComplete: inference.complete,
     shownToMe,
   };
+  snapshotCache.set(history, state);
+  return state;
 }
 
 function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solutionsComplete = true) {
@@ -329,10 +351,16 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solu
       const roomCoverage = new Set(pairSolutions.map(solution => solution.room)).size;
       const currentRoomSupport = roomSolutions.filter(solution =>
         solution.suspect === suspect && solution.weapon === weapon).length;
+      const informationGain = currentRoomSupport * 3 + roomCoverage;
       const opponent = opponentPairSupport.get(key);
       const repeatedOpponent = opponent && (opponent.count >= 2 || opponent.rooms.size >= 2);
+      // Repeated public pairs are useful only while they remain informative.
+      // An unrefuted repeat is stronger evidence than a pair repeatedly
+      // disproved by refutations, so stale refuted pairs do not dominate the
+      // local solver's supported candidates.
+      const refuted = opponent ? opponent.count - opponent.unrefuted : 0;
       const opponentPriority = repeatedOpponent
-        ? opponent.count + opponent.rooms.size * 2 + opponent.unrefuted / 2
+        ? opponent.unrefuted * 3 + opponent.rooms.size - refuted / 2
         : 0;
       pairs.push({
         suspect,
@@ -340,11 +368,12 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solu
         support,
         roomCoverage,
         currentRoomSupport,
+        informationGain,
         opponentPriority,
         repeated: tried.has(key),
       });
       pairs[pairs.length - 1].opponentSupport = opponent
-        ? opponent.count + opponent.rooms.size / 10
+        ? opponent.unrefuted * 2 + opponent.rooms.size / 10 - refuted / 4
         : 0;
     }
   }
@@ -358,8 +387,9 @@ function chooseSuggestion(start, room, shownToMe, solutions = [], all = [], solu
     : pairs;
   const fresh = possible.filter(pair => !pair.repeated);
   const choices = fresh.length ? fresh : possible;
-  choices.sort((a, b) => b.opponentPriority - a.opponentPriority || b.support - a.support ||
-    b.roomCoverage - a.roomCoverage ||
+  choices.sort((a, b) => b.informationGain - a.informationGain ||
+    b.opponentPriority - a.opponentPriority || b.roomCoverage - a.roomCoverage ||
+    b.support - a.support ||
     b.currentRoomSupport - a.currentRoomSupport || b.opponentSupport - a.opponentSupport ||
     a.suspect.localeCompare(b.suspect) || a.weapon.localeCompare(b.weapon));
   const choice = choices[0] ?? { suspect: start.suspects[0], weapon: start.weapons[0] };
@@ -533,8 +563,15 @@ function decide(history, request, options = {}) {
       cardId("weapon", current.suggestion.weapon),
       cardId("room", current.suggestion.room),
     ];
-    const card = cards.find(candidate => (start.hand ?? []).includes(candidate));
-    if (!card) throw new Error("cannot refute suggestion with current hand");
+    const owned = cards.filter(candidate => (start.hand ?? []).includes(candidate));
+    if (!owned.length) throw new Error("cannot refute suggestion with current hand");
+    const state = snapshot(history);
+    const solutionFrequency = card => state.solutions.reduce((count, solution) =>
+      count + (solution.suspect === card.slice(8) ||
+        solution.weapon === card.slice(7) || solution.room === card.slice(5) ? 1 : 0), 0);
+    const card = state.solutionsComplete
+      ? owned.sort((a, b) => solutionFrequency(a) - solutionFrequency(b) || a.localeCompare(b))[0]
+      : owned[0];
     return { type: "card-shown", card };
   }
 
@@ -555,7 +592,7 @@ async function handle(message, options = {}) {
   return decide(message.history ?? [], message.decision, options);
 }
 
-export { handle, snapshot };
+export { handle, inferSolutions, snapshot };
 
 async function run() {
   const { createInterface } = await import("node:readline");

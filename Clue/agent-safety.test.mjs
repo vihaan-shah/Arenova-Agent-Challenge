@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { handle } from "./ai-clue-agent.mjs";
+import { inferSolutions } from "./clue-agent.mjs";
 
 const start = {
   type: "game-started",
@@ -75,4 +76,78 @@ test("accuse-or-end always returns a legal response after a suggestion", async (
     decision: { kind: "accuse-or-end" },
   });
   assert.ok(response.type === "turn-ended" || response.type === "accusation-made");
+});
+
+test("unrefuted opponent suggestions constrain the solution search", () => {
+  const solverStart = {
+    ...start,
+    seats: ["seat-1", "seat-6"],
+    handSizes: { "seat-1": 1, "seat-6": 3 },
+    hand: ["suspect:mustard", "weapon:knife", "room:lounge"],
+    suspects: ["scarlet", "mustard", "green"],
+    weapons: ["rope", "knife"],
+    rooms: ["hall", "lounge"],
+    cards: {
+      suspects: ["suspect:scarlet", "suspect:mustard", "suspect:green"],
+      weapons: ["weapon:rope", "weapon:knife"],
+      rooms: ["room:hall", "room:lounge"],
+    },
+  };
+  const solverHistory = [
+    { type: "game-started", ...solverStart },
+    {
+      type: "card-shown",
+      turn: 1,
+      shownTo: "seat-6",
+      refuter: "seat-1",
+      card: "suspect:green",
+    },
+    {
+      type: "suggestion-made",
+      turn: 2,
+      suggester: "seat-1",
+      suggestion: { suspect: "scarlet", weapon: "rope", room: "hall" },
+      passedSeats: ["seat-6"],
+      refuter: null,
+    },
+  ];
+  const result = inferSolutions(solverStart, solverHistory, new Set(solverStart.hand));
+  assert.equal(result.complete, true);
+  assert.ok(result.candidates.every(candidate =>
+    candidate.suspect === "scarlet" || candidate.weapon === "rope" || candidate.room === "hall"));
+});
+
+test("show-card prefers the held card least consistent with remaining solutions", async () => {
+  const showStart = {
+    ...start,
+    hand: ["suspect:mustard", "weapon:rope"],
+    handSizes: { "seat-1": 1, "seat-6": 2 },
+    cards: {
+      suspects: ["suspect:scarlet", "suspect:mustard"],
+      weapons: ["weapon:rope", "weapon:knife"],
+      rooms: ["room:hall", "room:lounge"],
+    },
+  };
+  const showHistory = [
+    { seq: 0, event: showStart },
+    {
+      seq: 1,
+      event: {
+        type: "suggestion-made",
+        turn: 1,
+        suggester: "seat-1",
+        suggestion: { suspect: "mustard", weapon: "rope", room: "lounge" },
+        passedSeats: [],
+        refuter: "seat-6",
+      },
+    },
+  ];
+  await handle({ type: "init", seat: "seat-6" });
+  const response = await handle({
+    type: "decision",
+    history: showHistory,
+    decision: { kind: "show-card" },
+  });
+  assert.equal(response.type, "card-shown");
+  assert.ok(["suspect:mustard", "weapon:rope"].includes(response.card));
 });

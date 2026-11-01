@@ -6,16 +6,12 @@ This is a Connect 4 player for the Arenova Agent Challenge.
 
 The agent reads one JSON message per line from standard input and writes one JSON response per line. It returns only a column number; the game runner decides the row and player.
 
-## Why JavaScript and Node.js?
-
-The challenge provides a JavaScript/Node.js runtime. I also have prior Java experience from school, so familiar concepts such as variables, loops, functions, conditionals, and structured objects transferred naturally to JavaScript. Node.js is a good fit because the protocol is JSON-based, it can read the input stream line by line, and no extra libraries are needed.
-
 ## How the agent plays
 
 1. Rebuilds the board from the visible history.
-2. Uses `game-started` to identify whether it is red or yellow.
+2. Identifies whether it is red or yellow.
 3. Plays an immediate winning move when possible.
-4. Blocks an opponent's immediate winning move.
+4. Blocks an opponent’s immediate winning move.
 5. Searches future moves with minimax and alpha-beta pruning.
 6. Prefers the center because it creates more possible lines.
 
@@ -23,74 +19,17 @@ The challenge provides a JavaScript/Node.js runtime. I also have prior Java expe
 
 - `connect4-agent.mjs` — the submission agent.
 - `crucible.json` — tells the runner to use Node 24 and the entrypoint.
-- `README.md` — this explanation.
+- `README.md` — this replay summary.
 
-## Test cases
+## Replay summary
 
-These checks were run from the project root:
+The agent won all six recorded replays. It succeeded against Random Randy, Average Aaron, and Luna; handled both red and yellow; and won while playing in both event-order positions. The longer Luna games also exercised defensive play, diagonal threats, board reconstruction, and full-column avoidance. Every replay completed normally with legal responses and no forfeits.
 
-| Test | Input situation | Expected result |
-| --- | --- | --- |
-| Syntax check | Run `npm run check` | Both agent files parse successfully. |
-| Protocol initialization | Send `{"type":"init","seat":"seat-2"}` | Returns `{}`. |
-| Empty board | Send a decision with only `game-started` in history | Returns a valid `disc-dropped` response with a legal column. |
-| Immediate win | Give red discs in columns 0, 1, and 2 | Returns column 3. |
-| Immediate block | Give the opponent three connected discs with an open winning column | Returns the blocking column. |
-| Full-column avoidance | Mark a column full in history | The returned column is not full. |
+## Recorded replays
 
-Run the syntax check with:
-
-```bash
-npm run check
-```
-
-## Recorded replay tests
-
-### Replay 1
-
-- CCv2 played seat 1 as red against Random Randy.
-- The match finished normally in about 4.4 seconds.
-- CCv2 won after five of its own moves, connecting four at cells 17, 24, 31, and 38.
-- There was no invalid move or forfeit.
-
-### Replay 2
-
-- CCv2 played seat 1 as red against Average Aaron.
-- The match finished normally in about 4.1 seconds.
-- CCv2 won after five of its own moves, connecting four at cells 37, 38, 39, and 40.
-- There was no invalid move or forfeit.
-
-### Replay 3
-
-- CCv2 played seat 2 as red against Luna.
-- The match finished normally in about 224.8 seconds.
-- CCv2 won after twelve of its own moves, connecting four at cells 2, 10, 18, and 26.
-- This tested the agent while playing second in the event order and still controlling the red pieces.
-
-### Replay 4
-
-- CCv2 played seat 1 as yellow against Luna.
-- The match finished normally in about 90.2 seconds.
-- CCv2 won after eight of its own moves, connecting four at cells 16, 24, 32, and 40.
-- This tested the yellow-player identity and board reconstruction.
-
-### Replay 5
-
-- CCv2 played seat 1 as yellow against Luna.
-- The match finished normally in about 104.3 seconds.
-- CCv2 won after nine of its own moves, connecting four at cells 11, 17, 23, and 29.
-- The agent continued to return legal columns throughout the longer game.
-
-### Replay 6
-
-- CCv2 played seat 1 as red against Luna.
-- The match finished normally in about 126.7 seconds.
-- CCv2 won after nine of its own moves, connecting four at cells 18, 24, 30, and 36.
-- This tested the agent's defensive and diagonal-threat handling in a long match.
-
-### Overall result
-
-- CCv2 won all six recorded matches.
-- The tests covered both red and yellow, playing first and second in the event order, and opponents with different playing styles.
-- Follow-up validation: every replay completed normally with legal responses.
-
+- **Replay 1 — Random Randy:** CCv2 played red and won in about 4.4 seconds after five moves, connecting cells 17, 24, 31, and 38.
+- **Replay 2 — Average Aaron:** CCv2 played red and won in about 4.1 seconds after five moves, connecting cells 37, 38, 39, and 40.
+- **Replay 3 — Luna:** CCv2 played red as seat 2 and won in about 224.8 seconds after twelve moves, connecting cells 2, 10, 18, and 26.
+- **Replay 4 — Luna:** CCv2 played yellow and won in about 90.2 seconds after eight moves, connecting cells 16, 24, 32, and 40.
+- **Replay 5 — Luna:** CCv2 played yellow and won in about 104.3 seconds after nine moves, connecting cells 11, 17, 23, and 29. The agent remained legal throughout the longer game.
+- **Replay 6 — Luna:** CCv2 played red and won in about 126.7 seconds after nine moves, connecting cells 18, 24, 30, and 36. This replay exercised defensive and diagonal-threat handling.

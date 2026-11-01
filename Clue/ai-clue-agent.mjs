@@ -316,6 +316,32 @@ function localRoomGoal(start, history) {
   const current = currentRoom(start, history);
   if (focused) return stagingRoom(start, current, focused) ?? focused;
 
+  const state = analyzeHistory(history);
+  if (state.solutionsComplete && state.solutions.length) {
+    const candidateRooms = [...new Set(state.solutions.map(solution => solution.room))];
+    const position = currentPosition(start, history);
+    const doors = start.board?.doors ?? [];
+    const distance = room => {
+      if (!position) return Number.POSITIVE_INFINITY;
+      if (position.kind === "room") {
+        if (position.room === room) return 0;
+        if ((start.board?.secretPassages ?? []).some(passage =>
+          (passage.from === position.room && passage.to === room) ||
+          (passage.to === position.room && passage.from === room))) return 0;
+        const from = doors.filter(door => door.room === position.room).map(door => door.corridor);
+        const to = doors.filter(door => door.room === room).map(door => door.corridor);
+        return Math.min(...from.flatMap(a => to.map(b =>
+          Math.abs(a.row - b.row) + Math.abs(a.column - b.column))));
+      }
+      const to = doors.filter(door => door.room === room).map(door => door.corridor);
+      return Math.min(...to.map(door =>
+        Math.abs(position.row - door.row) + Math.abs(position.column - door.column)));
+    };
+    const support = room => state.solutions.filter(solution => solution.room === room).length;
+    const nearestCandidateRoom = candidateRooms.sort((a, b) => distance(a) - distance(b) ||
+      support(b) - support(a) || a.localeCompare(b))[0];
+    return stagingRoom(start, current, nearestCandidateRoom) ?? nearestCandidateRoom;
+  }
   const crowded = busiestRoom(start, history);
   return stagingRoom(start, current, crowded) ?? crowded ?? strategicRoom(start, history);
 }
