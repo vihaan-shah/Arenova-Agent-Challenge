@@ -100,6 +100,7 @@ function analyze(history) {
     suspicion: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
     trust: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
     fascistParticipation: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
+    forcedFascistParticipation: Object.fromEntries((start.seats ?? []).map((seat) => [seat, 0])),
     knownLiberals: new Set(),
     knownFascistsPublic: new Set(start.knownFascists ?? []),
     confirmedNotDictator: new Set(),
@@ -135,6 +136,9 @@ function analyze(history) {
   const addFascistParticipation = (seat) => {
     if (seat && seat in state.fascistParticipation) state.fascistParticipation[seat] += 1;
   };
+  const addForcedFascistParticipation = (seat) => {
+    if (seat && seat in state.forcedFascistParticipation) state.forcedFascistParticipation[seat] += 1;
+  };
   const rememberStatement = (seat, text, round) => {
     if (!seat || !text || !(seat in state.suspicion)) return;
     const claim = parseCardClaim(text);
@@ -150,7 +154,12 @@ function analyze(history) {
     }
     if (!Object.keys(claim).length) return;
     const enacted = state.roundPolicies.get(round);
-    addTrust(seat, claimIsConsistent(claim, enacted) ? 1 : -1.5);
+    const consistent = claimIsConsistent(claim, enacted);
+    addTrust(seat, consistent ? 1 : -1.5);
+    if (consistent && ((claim.received === "FF" && claim.enacted === "F") ||
+      (claim.drawn === "FFF" && claim.discarded === "F" && claim.passed === "FF"))) {
+      addForcedFascistParticipation(seat);
+    }
   };
   const voteArray = (event) => event.votes ?? event.ballots ?? event.voteResults ?? [];
   for (const event of es) {
@@ -207,11 +216,18 @@ function analyze(history) {
       }
     } else if (event.type === "election-tracker-advanced") {
       state.electionTracker = event.electionTracker ?? state.electionTracker;
+    } else if (event.type === "chaos-triggered") {
+      state.electionFailures = 0;
+      state.electionTracker = 0;
     } else if (event.type === "policy-enacted") {
       state.lastPolicy = event.policy;
       state.lastPolicyRound = event.round ?? null;
       if (event.policy === "liberal") state.liberalPolicies += 1;
       if (event.policy === "fascist") state.fascistPolicies += 1;
+      if (event.source === "chaos") {
+        state.electionFailures = 0;
+        state.electionTracker = 0;
+      }
       state.roundPolicies.set(event.round ?? es.indexOf(event), event.policy);
       // Chaos has no accountable government.  For an ordinary government,
       // use the seats named on the public event rather than stale state.
@@ -325,7 +341,10 @@ function bestTarget(state, kind) {
   const candidates = legalTargets(state, kind);
   if (!candidates.length) throw new Error("no legal player target");
   if (state.fascist && (kind === "nominate-chancellor" || kind === "special-election")) {
-    if (state.fascistPolicies >= 3 && state.knownDictator && candidates.includes(state.knownDictator)) {
+    // With two Fascist policies already enacted, electing the known Dictator
+    // as Chancellor can end the game on the next Fascist policy. This is a
+    // higher-value coalition move than choosing another ordinary ally.
+    if (state.fascistPolicies >= 2 && state.knownDictator && candidates.includes(state.knownDictator)) {
       return state.knownDictator;
     }
     const allies = candidates.filter((seat) => state.allies.has(seat));
@@ -373,12 +392,18 @@ function fallbackDecision(state, decision) {
     const adjustedSuspicion = state.suspicion[nominee] - (state.trust[nominee] ?? 0) * 1.2;
     const dangerous = state.fascistPolicies >= 3 && !state.allies.has(nominee) && adjustedSuspicion >= 2;
     const confirmedFascist = state.knownFascistsPublic.has(nominee);
+    const effectiveFascistAssociation = (state.fascistParticipation[nominee] ?? 0) -
+      (state.forcedFascistParticipation[nominee] ?? 0);
     const lateFascistAssociation = state.fascistPolicies >= 2 &&
-      (state.fascistParticipation[nominee] ?? 0) > 0 && !state.knownLiberals.has(nominee);
+      effectiveFascistAssociation > 0 && !state.knownLiberals.has(nominee);
     const trusted = state.allies.has(nominee) || state.knownLiberals.has(nominee) ||
       ((state.trust[nominee] ?? 0) >= 1 && adjustedSuspicion < 2) || adjustedSuspicion <= 0;
     if (state.dictator) return { type: "vote-cast", vote: "yes" };
     if (!state.fascist && (confirmedFascist || dangerous || lateFascistAssociation)) return { type: "vote-cast", vote: "no" };
+    const nearChaos = state.electionTracker >= 2 || state.electionFailures >= 2;
+    if (!state.fascist && nearChaos && !confirmedFascist && adjustedSuspicion < 3) {
+      return { type: "vote-cast", vote: "yes" };
+    }
     return { type: "vote-cast", vote: state.fascist ? (trusted || state.fascistPolicies < 3 ? "yes" : "no") : (dangerous ? "no" : (trusted ? "yes" : "no")) };
   }
   if (decision.kind === "president-discard") {

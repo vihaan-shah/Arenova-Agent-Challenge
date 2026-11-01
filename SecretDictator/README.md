@@ -51,9 +51,9 @@ by the player API.
 
 ## Replay summary
 
-The latest two evaluation runs show that the agent is protocol-safe and can
-coordinate effectively as the Fascist team, while Liberal play still needs
-more caution around late-game governments.
+The latest four evaluation runs show that the agent is protocol-safe and can
+coordinate effectively as the Fascist team, while Liberal play needs better
+balance between caution and avoiding chaos.
 
 The agent’s strengths are that ordinary Fascists use their known allies, Fascists
 coordinate special elections, the Dictator uses public Fascist evidence despite
@@ -62,16 +62,21 @@ information, and all observed actions were legal without crashes.
 
 Its main weakness is Liberal late-game decision-making. Liberals previously
 nominated or special-elected suspicious Fascists after two or three Fascist
-policies and approved too many governments involving players who had already
-participated in Fascist governments. After the third Fascist policy, a Liberal
-special election must prefer a trusted Liberal. Discussion claims are useful,
-but a truthful card claim should not erase all suspicion from a player who
-repeatedly appears in Fascist governments.
+policies, approved too many governments involving players who had already
+participated in Fascist governments, and in one run rejected safe governments
+so often that chaos eventually produced six Fascist policies. After the third
+Fascist policy, a Liberal special election must prefer a trusted Liberal, but
+before chaos the agent must still accept a reasonably safe government. A
+truthful `received FF` claim reduces suspicion because the Fascist policy may
+have been forced; it should not erase all suspicion from a player who
+repeatedly appears in voluntary Fascist governments.
 
 ## Recorded replays
 
 - **Liberal evaluation:** `crucible-secret-dictator-e3d51c11-ab72-4ccc-9bcd-12fa70f18669.json`. Two AIAgents played Liberals. The Fascists won after the Liberal President chose a suspicious player for a special election, allowing that player to elect the Dictator.
 - **Fascist evaluation:** `crucible-secret-dictator-0ad4d74b-a0a0-4e41-af12-eadfb1838520.json`. Three AIAgents played the Fascist team. They enacted three Fascist policies and successfully elected the Dictator as Chancellor.
+- **Liberal chaos evaluation:** `crucible-secret-dictator-6f2df203-711d-4ed4-824a-2c84266b8e5e.json`. Four AIAgents played Liberals. They rejected safe governments for many rounds, allowing repeated failed elections and a six-Fascist-policy win through chaos.
+- **Fascist coalition evaluation:** `crucible-secret-dictator-6342891d-9891-499a-8257-1858e917ea4d.json`. Three AIAgents played the Fascist team, but the Champions won after the Fascists stopped getting governments approved. This showed that after two Fascist policies the known Dictator should be prioritized when legal.
 
 Future replay results should be added to this section and used to update the
 strengths and weaknesses above. Older replay-by-replay records are intentionally
