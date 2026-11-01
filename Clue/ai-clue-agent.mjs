@@ -62,6 +62,28 @@ function currentPosition(start, history) {
   return positions[start.you.character] ?? null;
 }
 
+function emergencySuggestion(start, history) {
+  const position = currentPosition(start, history);
+  const room = position?.kind === "room" ? position.room : null;
+  if (!room) return null;
+  const known = new Set(start.hand ?? []);
+  const suspect = (start.suspects ?? []).find(value => !known.has(`suspect:${value}`));
+  const weapon = (start.weapons ?? []).find(value => !known.has(`weapon:${value}`));
+  return suspect && weapon
+    ? { type: "suggestion-made", suspect, weapon, room }
+    : null;
+}
+
+function emergencyResponse(request, start, history) {
+  if (request.kind === "make-suggestion") {
+    return emergencySuggestion(start, history) ?? { type: "turn-ended" };
+  }
+  if (request.kind === "accuse-or-end" || request.kind === "take-turn") {
+    return { type: "turn-ended" };
+  }
+  return {};
+}
+
 function validTriple(start, value) {
   return value &&
     (start.suspects ?? []).includes(value.suspect) &&
@@ -435,16 +457,18 @@ async function askRelay(start, history, request, fallback, mode = "decision", re
 }
 
 async function handle(message) {
-  if (message.type === "init") {
-    aiCalls = 0;
-    focusPair = null;
-    return safeHandle(message);
-  }
-  if (message.type !== "decision") return safeHandle(message);
+  try {
+    if (message.type === "init") {
+      aiCalls = 0;
+      focusPair = null;
+      return safeHandle(message);
+    }
+    if (message.type !== "decision") return safeHandle(message);
 
-  const request = message.decision;
-  const start = setup(message.history ?? []);
-  if (!start) return safeHandle(message);
+    const request = message.decision;
+    const history = message.history ?? [];
+    const start = setup(history);
+    if (!start) return safeHandle(message);
 
   let preferredRoom = null;
   if (request.kind === "take-turn") {
@@ -453,7 +477,7 @@ async function handle(message) {
     // If already in that room, use a nearby staging room because the rules may
     // require a pawn to leave before it can make another suggestion there.
     // The local engine still validates reachability and falls back safely.
-    preferredRoom = localRoomGoal(start, message.history ?? []);
+    preferredRoom = localRoomGoal(start, history);
   }
 
   let fallback;
@@ -461,35 +485,43 @@ async function handle(message) {
     fallback = await safeHandle(message, { preferredRoom });
   } catch (error) {
     console.error(`Local Clue fallback failed: ${error.message}`);
-    fallback = request.kind === "make-suggestion" ? deterministicSuggestion(start, message.history ?? []) : null;
+    fallback = request.kind === "make-suggestion" ? emergencySuggestion(start, history) : null;
   }
-  if (request.kind === "make-suggestion" && !legalSuggestion(start, message.history ?? [], fallback)) {
-    fallback = deterministicSuggestion(start, message.history ?? []);
+  if (request.kind === "make-suggestion" && !legalSuggestion(start, history, fallback)) {
+    fallback = emergencySuggestion(start, history) ?? deterministicSuggestion(start, history);
   }
   if (fallback?.type === "suggestion-made") {
     // Apply the stable-pair policy to suggestions returned through both
     // explicit make-suggestion and the local take-turn fallback path.
-    fallback = enforceFocusPair(start, message.history ?? [], fallback);
-    if (!legalSuggestion(start, message.history ?? [], fallback)) {
-      fallback = deterministicSuggestion(start, message.history ?? []);
+    fallback = enforceFocusPair(start, history, fallback);
+    if (!legalSuggestion(start, history, fallback)) {
+      fallback = emergencySuggestion(start, history) ?? deterministicSuggestion(start, history);
     }
   }
+  fallback ??= emergencyResponse(request, start, history);
 
   // The model is used only where it can add strategic value. Local code is
   // already safer and faster for paths and card-refutation responses.
   if (!["make-suggestion", "accuse-or-end"].includes(request.kind)) return fallback;
   if (fallback?.type === "accusation-made") return fallback;
-  if (!relayAllowed(request, message.history ?? [])) return fallback;
+  if (!relayAllowed(request, history)) return fallback;
 
-  const aiAction = await askRelay(start, message.history ?? [], request, fallback, "decision");
-  const result = validateAiAction(start, message.history ?? [], request, aiAction, fallback);
+  const aiAction = await askRelay(start, history, request, fallback, "decision");
+  const result = validateAiAction(start, history, request, aiAction, fallback);
   if (request.kind === "accuse-or-end" && aiAction?.type === "accusation-made" && result === fallback) {
     // Give the model one opportunity to recover from an evidence-invalid or
     // under-confident accusation instead of ending the turn immediately.
-    const replacement = await askRelay(start, message.history ?? [], request, fallback, "decision", aiAction);
-    return validateAiAction(start, message.history ?? [], request, replacement, fallback);
+    const replacement = await askRelay(start, history, request, fallback, "decision", aiAction);
+    return validateAiAction(start, history, request, replacement, fallback) ?? fallback;
   }
-  return result;
+  return result ?? fallback;
+  } catch (error) {
+    const request = message?.decision ?? {};
+    const history = message?.history ?? [];
+    const start = setup(history);
+    console.error(`Clue decision failed (${request.kind ?? "unknown"}): ${error.stack ?? error}`);
+    return start ? emergencyResponse(request, start, history) : {};
+  }
 }
 
 async function run() {
@@ -506,5 +538,7 @@ async function run() {
     }
   }
 }
+
+export { handle };
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) await run();
